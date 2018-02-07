@@ -1,68 +1,59 @@
-/*********************************************************************************************
-(c) 2005-2014 Copyright, Real-Time Innovations, Inc.  All rights reserved.                                  
-RTI grants Licensee a license to use, modify, compile, and create derivative works 
-of the Software.  Licensee has the right to distribute object form only for use with RTI 
-products.  The Software is provided “as is”, with no warranty of any type, including 
-any warranty for fitness for any purpose. RTI is under no obligation to maintain or 
-support the Software.  RTI shall not be liable for any incidental or consequential 
-damages arising out of the use or inability to use the software.
-**********************************************************************************************/
-
 using System;
-using System.Linq;
-using System.Reactive.Subjects;
 using System.Reactive.Disposables;
+using System.Reactive.Subjects;
 
 namespace RTI.RxDDS
 {
-  public abstract class SubjectOperatorBase<T, U, SubjectType>
-    : IObserver<T>, IObservable<U>
-      where SubjectType : ISubject<U, U>, new()
-  {
-    public SubjectOperatorBase(IObservable<T> source)
+    public abstract class SubjectOperatorBase<T, TU, TSubjectType>
+        : IObserver<T>, IObservable<TU>
+        where TSubjectType : ISubject<TU, TU>, new()
     {
-      this.source = source;
-      this.subject = new SubjectType();
-    }
+        //private object mutex;
+        //private bool alreadySubscribed = false;
+        private readonly IObservable<T> _source;
+        protected ISubject<TU, TU> Subject;
 
-    public abstract void OnNext(T value);
-    public virtual void OnCompleted()
-    {
-      subject.OnCompleted();
-    }
-    public virtual void OnError(Exception error)
-    {
-      subject.OnError(error);
-    }
-
-    public virtual IDisposable Subscribe(IObserver<U> observer)
-    {
-      return 
-        new CompositeDisposable()
-        {  
-          subject.Subscribe(observer),
-          source.Subscribe(this)
-        };
-
-      /*      lock (mutex)
-      {
-        if (!alreadySubscribed)
+        public SubjectOperatorBase(IObservable<T> source)
         {
-          alreadySubscribed = true;
-          return new CompositeDisposable()
-            {  
-              disp1,
-              source.Subscribe(this)
-            };
+            _source = source;
+            Subject = new TSubjectType();
         }
-        else
-          return disp1;
-      }*/
-    }
 
-    //private object mutex;
-    //private bool alreadySubscribed = false;
-    private IObservable<T> source;
-    protected ISubject<U, U> subject;
-  };
+        public virtual IDisposable Subscribe(IObserver<TU> observer)
+        {
+            return
+                new CompositeDisposable
+                {
+                    Subject.Subscribe(observer),
+                    _source.Subscribe(this)
+                };
+
+            /*      lock (mutex)
+            {
+              if (!alreadySubscribed)
+              {
+                alreadySubscribed = true;
+                return new CompositeDisposable()
+                  {  
+                    disp1,
+                    source.Subscribe(this)
+                  };
+              }
+              else
+                return disp1;
+            }*/
+        }
+
+        public abstract void OnNext(T value);
+
+        public virtual void OnCompleted()
+        {
+            Subject.OnCompleted();
+        }
+
+        public virtual void OnError(Exception error)
+        {
+            Subject.OnError(error);
+        }
+    }
 }

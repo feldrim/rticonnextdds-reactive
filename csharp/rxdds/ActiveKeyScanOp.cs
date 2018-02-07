@@ -6,111 +6,112 @@ using System.Reactive.Subjects;
 
 namespace RTI.RxDDS
 {
-    class ActiveKeyScanOp<Key, T, SeedType>
-        :  IObserver<IGroupedObservable<Key, T>> ,
-            IObservable<IList<IGroupedObservable<Key, T>>>
+    internal class ActiveKeyScanOp<TKey, T, TSeedType>
+        : IObserver<IGroupedObservable<TKey, T>>,
+            IObservable<IList<IGroupedObservable<TKey, T>>>
     {
-        public ActiveKeyScanOp(IObservable<IGroupedObservable<Key, T>> source,
-            SeedType seed,
-            Func<SeedType, IList<IGroupedObservable<Key, T>>, SeedType> aggregator)
+        private readonly Func<TSeedType, IList<IGroupedObservable<TKey, T>>, TSeedType> _aggregator;
+
+        private bool _completed;
+        private readonly object _guard;
+        private TSeedType _seed;
+        private readonly IObservable<IGroupedObservable<TKey, T>> _source;
+        private readonly IList<IGroupedObservable<TKey, T>> _streamList;
+        private readonly Subject<IList<IGroupedObservable<TKey, T>>> _subject;
+
+        public ActiveKeyScanOp(IObservable<IGroupedObservable<TKey, T>> source,
+            TSeedType seed,
+            Func<TSeedType, IList<IGroupedObservable<TKey, T>>, TSeedType> aggregator)
         {
-            this.aggregator = aggregator;
-            this.seed = seed;
-            this.source = source;
-            subject = new Subject<IList<IGroupedObservable<Key, T>>>();
-            guard = new Object();
-            streamList = new List<IGroupedObservable<Key, T>>();
-            completed = false;
+            _aggregator = aggregator;
+            _seed = seed;
+            _source = source;
+            _subject = new Subject<IList<IGroupedObservable<TKey, T>>>();
+            _guard = new object();
+            _streamList = new List<IGroupedObservable<TKey, T>>();
+            _completed = false;
         }
 
-        public void OnNext(IGroupedObservable<Key, T> value)
+        public virtual IDisposable Subscribe(IObserver<IList<IGroupedObservable<TKey, T>>> observer)
+        {
+            return
+                new CompositeDisposable
+                {
+                    _subject.Subscribe(observer),
+                    _source.Subscribe(this)
+                };
+        }
+
+        public void OnNext(IGroupedObservable<TKey, T> value)
         {
             AddStream(value);
-            value.Subscribe(data => { /* OnNext = No-op */},
-                (Exception ex) => DropStream(value),
+            value.Subscribe(data =>
+                {
+                    /* OnNext = No-op */
+                },
+                ex => DropStream(value),
                 () => DropStream(value));
         }
 
         public void OnCompleted()
         {
-            lock(guard) {
-                completed = true;
-                if (streamList.Count == 0)
-                {
-                    subject.OnCompleted();
-                }
+            lock (_guard)
+            {
+                _completed = true;
+                if (_streamList.Count == 0) _subject.OnCompleted();
             }
         }
 
         public void OnError(Exception error)
         {
-            subject.OnError(error);
+            _subject.OnError(error);
         }
 
-        public virtual IDisposable Subscribe(IObserver<IList<IGroupedObservable<Key, T>>> observer)
+        private void AddStream(IGroupedObservable<TKey, T> value)
         {
-            return
-                new CompositeDisposable()
-                {  
-                    subject.Subscribe(observer),
-                    source.Subscribe(this)
-                };
-        }
-
-        private void AddStream(IGroupedObservable<Key, T> value)
-        {
-            IList<IGroupedObservable<Key, T>> list = null;
-            lock (guard)
+            IList<IGroupedObservable<TKey, T>> list = null;
+            lock (_guard)
             {
                 try
                 {
-                    streamList.Add(value);
-                    list = new List<IGroupedObservable<Key, T>>(streamList);
-                    this.seed = aggregator(this.seed, list);
+                    _streamList.Add(value);
+                    list = new List<IGroupedObservable<TKey, T>>(_streamList);
+                    _seed = _aggregator(_seed, list);
                 }
                 catch (Exception ex)
                 {
-                    this.subject.OnError(ex);
+                    _subject.OnError(ex);
                     return;
                 }
+
                 /* Ensure Rx contract: Not to invoke observers concurrently.
            Therefore, OnNext call is inside guard. */
-                subject.OnNext(list);
+                _subject.OnNext(list);
             }
         }
 
-        private void DropStream(IGroupedObservable<Key, T> value)
+        private void DropStream(IGroupedObservable<TKey, T> value)
         {
-            IList<IGroupedObservable<Key, T>> list = null;
-            lock (guard)
+            lock (_guard)
             {
+                IList<IGroupedObservable<TKey, T>> list;
                 try
                 {
-                    streamList.Remove(value);
-                    list = new List<IGroupedObservable<Key, T>>(streamList);
-                    seed = aggregator(this.seed, list);
+                    _streamList.Remove(value);
+                    list = new List<IGroupedObservable<TKey, T>>(_streamList);
+                    _seed = _aggregator(_seed, list);
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
-                    this.subject.OnError(ex);
+                    _subject.OnError(ex);
                     return;
                 }
+
                 /* Ensure Rx contract: Not to invoke observers concurrently.
            Therefore, OnNext call is inside guard. */
-                subject.OnNext(list);
-                if (completed == true)
-                {
-                    subject.OnCompleted();
-                }
+                _subject.OnNext(list);
+                if (_completed) _subject.OnCompleted();
             }
         }
-
-        private bool completed;
-        private Object guard;
-        private SeedType seed;
-        private IList<IGroupedObservable<Key, T>> streamList;
-        private Func<SeedType, IList<IGroupedObservable<Key, T>>, SeedType> aggregator;
-        private IObservable<IGroupedObservable<Key, T>> source;
-        private Subject<IList<IGroupedObservable<Key, T>>> subject;
-    };
+    }
 }

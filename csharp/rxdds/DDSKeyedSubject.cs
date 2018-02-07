@@ -7,42 +7,39 @@ namespace RTI.RxDDS
 {
     public class DDSKeyedSubject<TKey, T> : IGroupedObservable<TKey, T>, IObserver<T>
     {
-        public TKey Key
-        {
-            get
-            {
-                return this.key;
-            }
-        }
+        private IScheduler _scheduler;
+        private readonly ISubject<T, T> _sub;
 
         public DDSKeyedSubject(TKey key, IScheduler scheduler = null)
         {
-            this.key = key;
-            this.scheduler = scheduler;
-            this.sub = new Subject<T>();
-        }
-        public void OnNext(T value)
-        {
-            //scheduler.Schedule(() => sub.OnNext(value));
-            sub.OnNext(value);
-        }
-        public void OnCompleted()
-        {
-            //scheduler.Schedule(() => sub.OnCompleted());
-            sub.OnCompleted();
-        }
-        public void OnError(Exception ex)
-        {
-            //scheduler.Schedule(() => sub.OnError(ex));
-            sub.OnError(ex);
-        }
-        public IDisposable Subscribe(IObserver<T> observer)
-        {
-            return sub.Subscribe(observer);
+            Key = key;
+            _scheduler = scheduler;
+            _sub = new Subject<T>();
         }
 
-        private TKey key;
-        private ISubject<T, T> sub;
-        private IScheduler scheduler;
-    };
+        public TKey Key { get; }
+
+        public IDisposable Subscribe(IObserver<T> observer)
+        {
+            return _sub.Subscribe(observer);
+        }
+
+        public void OnNext(T value)
+        {
+            //_scheduler.Schedule(() => sub.OnNext(value));
+            _sub.OnNext(value);
+        }
+
+        public void OnCompleted()
+        {
+            //_scheduler.Schedule(() => sub.OnCompleted());
+            _sub.OnCompleted();
+        }
+
+        public void OnError(Exception ex)
+        {
+            //_scheduler.Schedule(() => sub.OnError(ex));
+            _sub.OnError(ex);
+        }
+    }
 }

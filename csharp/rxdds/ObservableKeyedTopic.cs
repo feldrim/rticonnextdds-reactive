@@ -6,9 +6,26 @@ using System.Reactive.Subjects;
 
 namespace RTI.RxDDS
 {
-    class ObservableKeyedTopic<TKey, T> : IObservable<IGroupedObservable<TKey, T>>
-        where T : class , DDS.ICopyable<T>, new()
+    internal class ObservableKeyedTopic<TKey, T> : IObservable<IGroupedObservable<TKey, T>>
+        where T : class, DDS.ICopyable<T>, new()
     {
+        private IEqualityComparer<TKey> _comparer;
+
+        private readonly bool _externalSubDict;
+
+        private ISubject<IGroupedObservable<TKey, T>,
+            IGroupedObservable<TKey, T>> _groupSubject;
+
+        private Dictionary<DDS.InstanceHandle_t, TKey> _handleKeyDict;
+        private Dictionary<TKey, DDSKeyedSubject<TKey, T>> _keyedSubjectDict;
+        private Func<T, TKey> _keySelector;
+        private InstanceDataReaderListener _listener;
+        private object _mutex;
+        private DDS.DomainParticipant _participant;
+        private IScheduler _scheduler;
+        private string _topicName;
+        private string _typeName;
+
         public ObservableKeyedTopic(DDS.DomainParticipant participant,
             string topicName,
             string typeName,
@@ -24,7 +41,7 @@ namespace RTI.RxDDS
                 new Dictionary<TKey, DDSKeyedSubject<TKey, T>>(comparer),
                 scheduler);
 
-            externalSubDict = false;
+            _externalSubDict = false;
         }
 
         public ObservableKeyedTopic(DDS.DomainParticipant participant,
@@ -43,7 +60,13 @@ namespace RTI.RxDDS
                 subDict,
                 scheduler);
 
-            externalSubDict = true;
+            _externalSubDict = true;
+        }
+
+        public IDisposable Subscribe(IObserver<IGroupedObservable<TKey, T>> observer)
+        {
+            initSubject();
+            return _groupSubject.Subscribe(observer);
         }
 
         private void init(DDS.DomainParticipant participant,
@@ -54,37 +77,31 @@ namespace RTI.RxDDS
             Dictionary<TKey, DDSKeyedSubject<TKey, T>> subDict,
             IScheduler scheduler)
         {
-            mutex = new Object();
+            _mutex = new object();
 
-            if (scheduler == null)
-                this.scheduler = Scheduler.Immediate;
-            else
-                this.scheduler = scheduler;
+            _scheduler = scheduler ?? Scheduler.Immediate;
 
-            if (typeName == null)
-                this.typeName = typeof(T).ToString();
-            else
-                this.typeName = typeName;
+            _typeName = typeName ?? typeof(T).ToString();
 
-            this.participant = participant;
-            this.topicName = topicName;      
-            this.keySelector = keySelector;
-            this.comparer = comparer;
-            this.keyedSubjectDict = subDict;
-            this.handleKeyDict = new Dictionary<DDS.InstanceHandle_t, TKey>(new InstanceHandleComparer());
+            _participant = participant;
+            _topicName = topicName;
+            _keySelector = keySelector;
+            _comparer = comparer;
+            _keyedSubjectDict = subDict;
+            _handleKeyDict = new Dictionary<DDS.InstanceHandle_t, TKey>(new InstanceHandleComparer());
 
-            if (this.scheduler == null ||
-                this.typeName == null ||
-                this.participant == null ||
-                this.topicName == null ||
-                this.keySelector == null ||
-                this.comparer == null)
+            if (_scheduler == null ||
+                _typeName == null ||
+                _participant == null ||
+                _topicName == null ||
+                _keySelector == null ||
+                _comparer == null)
                 throw new ApplicationException("Invalid Params");
         }
 
         public void Dispose()
         {
-            listener.Dispose();
+            _listener.Dispose();
         }
 
         private void initializeDataReader(DDS.DomainParticipant participant)
@@ -93,68 +110,63 @@ namespace RTI.RxDDS
                 DDS.DomainParticipant.SUBSCRIBER_QOS_DEFAULT,
                 null,
                 DDS.StatusMask.STATUS_MASK_NONE);
-            if (subscriber == null)
-            {
-                throw new ApplicationException("create_subscriber error");
-            }
+            if (subscriber == null) throw new ApplicationException("create_subscriber error");
 
             DDS.Topic topic = participant.create_topic(
-                topicName,
-                typeName,
+                _topicName,
+                _typeName,
                 DDS.DomainParticipant.TOPIC_QOS_DEFAULT,
                 null,
                 DDS.StatusMask.STATUS_MASK_NONE);
-            if (topic == null)
-            {
-                throw new ApplicationException("create_topic error");
-            }
+            if (topic == null) throw new ApplicationException("create_topic error");
 
-            listener = new InstanceDataReaderListener(
-                groupSubject, keyedSubjectDict, keySelector, comparer, handleKeyDict, scheduler, externalSubDict);
+            _listener = new InstanceDataReaderListener(
+                _groupSubject, _keyedSubjectDict, _keySelector, _comparer, _handleKeyDict, _scheduler, _externalSubDict);
 
-            DDS.DataReaderQos r_qos = new DDS.DataReaderQos();
-            participant.get_default_datareader_qos(r_qos);
+            DDS.DataReaderQos rQos = new DDS.DataReaderQos();
+            participant.get_default_datareader_qos(rQos);
             //Console.WriteLine("LIB CODE DR QOS: " + r_qos.history.kind);
             //Console.WriteLine("LIB CODE DR QOS: " + r_qos.reliability.kind);
 
             DDS.DataReader reader = subscriber.create_datareader(
                 topic,
-                r_qos,//DDS.Subscriber.DATAREADER_QOS_DEFAULT,
-                listener,
+                rQos, //DDS.Subscriber.DATAREADER_QOS_DEFAULT,
+                _listener,
                 DDS.StatusMask.STATUS_MASK_ALL);
-            if (reader == null)
-            {
-                listener = null;
-                throw new ApplicationException("create_datareader error");
-            }
+            if (reader != null) return;
+            _listener = null;
+            throw new ApplicationException("create_datareader error");
         }
 
         private void initSubject()
         {
-            lock (mutex)
+            lock (_mutex)
             {
-                if (groupSubject == null)
-                {
-                    groupSubject = new Subject<IGroupedObservable<TKey, T>>();
-                    initializeDataReader(participant);
-                }
+                if (_groupSubject != null) return;
+                _groupSubject = new Subject<IGroupedObservable<TKey, T>>();
+                initializeDataReader(_participant);
             }
-        }
-
-        public IDisposable Subscribe(IObserver<IGroupedObservable<TKey, T>> observer)
-        {
-            initSubject();
-            return groupSubject.Subscribe(observer);
         }
 
         public IDisposable Subscribe(Action<IGroupedObservable<TKey, T>> action)
         {
             initSubject();
-            return groupSubject.Subscribe(action);
+            return _groupSubject.Subscribe(action);
         }
 
         private class InstanceDataReaderListener : DataReaderListenerAdapter
         {
+            private IEqualityComparer<TKey> _comparer;
+            private readonly DDS.UserRefSequence<T> _dataSeq;
+
+            private readonly bool _externalSubDict;
+            private readonly Dictionary<DDS.InstanceHandle_t, TKey> _handleKeyDict;
+            private readonly DDS.SampleInfoSeq _infoSeq;
+            private readonly Dictionary<TKey, DDSKeyedSubject<TKey, T>> _keyedSubDict;
+            private readonly Func<T, TKey> _keySelector;
+            private readonly IObserver<IGroupedObservable<TKey, T>> _observer;
+            private readonly IScheduler _scheduler;
+
             public InstanceDataReaderListener(IObserver<IGroupedObservable<TKey, T>> observer,
                 Dictionary<TKey, DDSKeyedSubject<TKey, T>> dict,
                 Func<T, TKey> keySelector,
@@ -163,15 +175,15 @@ namespace RTI.RxDDS
                 IScheduler sched,
                 bool externalSubDict)
             {
-                this.externalSubDict = externalSubDict;
-                this.observer = observer;
-                this.scheduler = sched;
-                this.keyedSubDict = dict;
-                this.keySelector = keySelector;
-                this.comparer = comparer;
-                this.handleKeyDict = handleKeyDict;
-                this.dataSeq = new DDS.UserRefSequence<T>();
-                this.infoSeq = new DDS.SampleInfoSeq();
+                _externalSubDict = externalSubDict;
+                _observer = observer;
+                _scheduler = sched;
+                _keyedSubDict = dict;
+                _keySelector = keySelector;
+                _comparer = comparer;
+                _handleKeyDict = handleKeyDict;
+                _dataSeq = new DDS.UserRefSequence<T>();
+                _infoSeq = new DDS.SampleInfoSeq();
             }
 
             public override void on_data_available(DDS.DataReader reader)
@@ -179,105 +191,85 @@ namespace RTI.RxDDS
                 try
                 {
                     DDS.TypedDataReader<T> dataReader =
-                        (DDS.TypedDataReader<T>)reader;
+                        (DDS.TypedDataReader<T>) reader;
 
                     dataReader.take(
-                        dataSeq,
-                        infoSeq,
+                        _dataSeq,
+                        _infoSeq,
                         DDS.ResourceLimitsQosPolicy.LENGTH_UNLIMITED,
                         DDS.SampleStateKind.ANY_SAMPLE_STATE,
                         DDS.ViewStateKind.ANY_VIEW_STATE,
                         DDS.InstanceStateKind.ANY_INSTANCE_STATE);
 
-                    System.Int32 dataLength = dataSeq.length;
-                    for (int i = 0; i < dataLength; ++i)
+                    int dataLength = _dataSeq.length;
+                    for (var i = 0; i < dataLength; ++i)
                     {
-                        DDS.SampleInfo info = infoSeq.get_at(i);
+                        DDS.SampleInfo info = _infoSeq.get_at(i);
                         if (info.valid_data)
                         {
-                            T data = new T();
-                            data.copy_from(dataSeq.get_at(i));
-                            TKey key = keySelector(data);
+                            var data = new T();
+                            data.copy_from(_dataSeq.get_at(i));
+                            var key = _keySelector(data);
                             DDSKeyedSubject<TKey, T> keyedSubject;
 
-                            if (!keyedSubDict.ContainsKey(key))
+                            if (!_keyedSubDict.ContainsKey(key))
                             {
-                                keyedSubject = new DDSKeyedSubject<TKey, T>(key, scheduler);
-                                keyedSubDict.Add(key, keyedSubject);
-                                handleKeyDict.Add(info.instance_handle, key);
-                                observer.OnNext(keyedSubject);
+                                keyedSubject = new DDSKeyedSubject<TKey, T>(key, _scheduler);
+                                _keyedSubDict.Add(key, keyedSubject);
+                                _handleKeyDict.Add(info.instance_handle, key);
+                                _observer.OnNext(keyedSubject);
                             }
                             else
                             {
-                                keyedSubject = keyedSubDict[key];
-                                if (externalSubDict)
-                                {
-                                    if (!handleKeyDict.ContainsKey(info.instance_handle))
+                                keyedSubject = _keyedSubDict[key];
+                                if (_externalSubDict)
+                                    if (!_handleKeyDict.ContainsKey(info.instance_handle))
                                     {
-                                        handleKeyDict.Add(info.instance_handle, key);
-                                        observer.OnNext(keyedSubject);
+                                        _handleKeyDict.Add(info.instance_handle, key);
+                                        _observer.OnNext(keyedSubject);
                                     }
-                                }
                             }
+
                             keyedSubject.OnNext(data);
                         }
                         else if (info.instance_state == DDS.InstanceStateKind.NOT_ALIVE_DISPOSED_INSTANCE_STATE)
                         {
-                            if (handleKeyDict.ContainsKey(info.instance_handle))
+                            if (_handleKeyDict.ContainsKey(info.instance_handle))
                             {
-                                TKey key = handleKeyDict[info.instance_handle];
-                                if (keyedSubDict.ContainsKey(key))
+                                var key = _handleKeyDict[info.instance_handle];
+                                if (_keyedSubDict.ContainsKey(key))
                                 {
-                                    DDSKeyedSubject<TKey, T> keyedSub = keyedSubDict[key];
-                                    keyedSubDict.Remove(key);
-                                    handleKeyDict.Remove(info.instance_handle);
+                                    var keyedSub = _keyedSubDict[key];
+                                    _keyedSubDict.Remove(key);
+                                    _handleKeyDict.Remove(info.instance_handle);
                                     keyedSub.OnCompleted();
                                     /* FIXME: If the instance comes alive again, it will break the Rx contract */
                                 }
                                 else
-                                    Console.WriteLine("InstanceDataReaderListener invariant broken: keyedSubDict does not contain key");
+                                {
+                                    Console.WriteLine(
+                                        "InstanceDataReaderListener invariant broken: keyedSubDict does not contain key");
+                                }
                             }
                             else
-                                Console.WriteLine("InstanceDataReaderListener invariant broken: handleKeyDict does not contain info.instance_handle");
+                            {
+                                Console.WriteLine(
+                                    "InstanceDataReaderListener invariant broken: handleKeyDict does not contain info.instance_handle");
+                            }
                         }
                     }
 
-                    dataReader.return_loan(dataSeq, infoSeq);
+                    dataReader.return_loan(_dataSeq, _infoSeq);
                 }
                 catch (DDS.Retcode_NoData)
                 {
-                    return;
                 }
                 catch (DDS.Exception ex)
                 {
-                    observer.OnError(ex);
+                    _observer.OnError(ex);
                     Console.WriteLine("ObservableKeyedTopic: InstanceDataReaderListener: take error {0}", ex);
                 }
             }
-
-            private bool externalSubDict;
-            private DDS.UserRefSequence<T> dataSeq;
-            private DDS.SampleInfoSeq infoSeq;
-            private IObserver<IGroupedObservable<TKey, T>> observer;
-            private Dictionary<TKey, DDSKeyedSubject<TKey, T>> keyedSubDict;
-            private Func<T, TKey> keySelector;
-            private IEqualityComparer<TKey> comparer;
-            private Dictionary<DDS.InstanceHandle_t, TKey> handleKeyDict;
-            private IScheduler scheduler;
         }
-
-        private bool externalSubDict;
-        private Object mutex;
-        private DDS.DomainParticipant participant;
-        private string topicName;
-        private string typeName;
-        private InstanceDataReaderListener listener;
-        private ISubject<IGroupedObservable<TKey, T>,
-            IGroupedObservable<TKey, T>> groupSubject;
-        private Dictionary<TKey, DDSKeyedSubject<TKey, T>> keyedSubjectDict;
-        private Func<T, TKey> keySelector;
-        private IEqualityComparer<TKey> comparer;
-        private Dictionary<DDS.InstanceHandle_t, TKey> handleKeyDict;
-        private IScheduler scheduler;
-    };
+    }
 }

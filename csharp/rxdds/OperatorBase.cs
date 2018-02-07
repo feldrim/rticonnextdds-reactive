@@ -3,11 +3,11 @@ using System.Reactive.Subjects;
 
 namespace RTI.RxDDS
 {
-    public abstract class OperatorBase<T, U> : SubjectOperatorBase<T, U, Subject<U>>
+    public abstract class OperatorBase<T, TU> : SubjectOperatorBase<T, TU, Subject<TU>>
     {
-        public OperatorBase(IObservable<T> source)
+        protected OperatorBase(IObservable<T> source)
             : base(source)
         {
         }
-    };
+    }
 }

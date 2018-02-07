@@ -1,62 +1,55 @@
 using System;
+using System.Reflection;
 
 namespace RTI.RxDDS
 {
     public class DefaultParticipant
     {
-        public static int DomainId
-        {
-            get { return domainId; }
-            set { domainId = value; }
-        }
+        private static DDS.DomainParticipant _participant;
+
+        public static int DomainId { get; set; } = 0;
 
         public static DDS.DomainParticipant Instance
         {
             get
             {
-                if (participant == null)
-                {
-           
-                    participant =
-                        DDS.DomainParticipantFactory.get_instance().create_participant(
-                            domainId,
-                            DDS.DomainParticipantFactory.PARTICIPANT_QOS_DEFAULT,
-                            null /* listener */,
-                            DDS.StatusMask.STATUS_MASK_NONE);
-                    if (participant == null)
-                    {
-                        throw new ApplicationException("create_participant error");
-                    }
-                }
+                if (_participant != null) return _participant;
 
-                return participant;
+                _participant =
+                    DDS.DomainParticipantFactory.get_instance().create_participant(
+                        DomainId,
+                        DDS.DomainParticipantFactory.PARTICIPANT_QOS_DEFAULT,
+                        null /* listener */,
+                        DDS.StatusMask.STATUS_MASK_NONE);
+                if (_participant == null) throw new ApplicationException("create_participant error");
+
+                return _participant;
             }
         }
 
         public static void Shutdown()
         {
-            if (Instance != null)
-            {
-                Instance.delete_contained_entities();
-                DDS.DomainParticipantFactory.get_instance().delete_participant(
-                    ref participant);
-            }
+            if (Instance == null) return;
+            Instance.delete_contained_entities();
+            DDS.DomainParticipantFactory.get_instance().delete_participant(
+                ref _participant);
         }
 
         public static void RegisterType<Type, TypeSupportClass>()
         {
             typeof(TypeSupportClass)
                 .GetMethod("register_type",
-                    System.Reflection.BindingFlags.Public |
-                    System.Reflection.BindingFlags.Static)        
-                .Invoke(null, new Object[] { Instance, typeof(Type).ToString() });
+                    BindingFlags.Public |
+                    BindingFlags.Static)
+                ?.Invoke(null, new object[] {Instance, typeof(Type).ToString()});
         }
-    
+
         public static DDS.TypedDataWriter<T> CreateDataWriter<T>(string topicName)
         {
             return CreateDataWriter<T>(topicName, typeof(T).ToString());
         }
-        public static DDS.TypedDataWriter<T> CreateDataWriter<T>(string topicName, 
+
+        public static DDS.TypedDataWriter<T> CreateDataWriter<T>(string topicName,
             string typeName)
         {
             DDS.DomainParticipant participant = Instance;
@@ -66,10 +59,7 @@ namespace RTI.RxDDS
                 null /* listener */,
                 DDS.StatusMask.STATUS_MASK_NONE);
 
-            if (publisher == null)
-            {
-                throw new ApplicationException("create_publisher error");
-            }
+            if (publisher == null) throw new ApplicationException("create_publisher error");
 
             DDS.Topic topic = participant.create_topic(
                 topicName,
@@ -77,11 +67,8 @@ namespace RTI.RxDDS
                 DDS.DomainParticipant.TOPIC_QOS_DEFAULT,
                 null /* listener */,
                 DDS.StatusMask.STATUS_MASK_NONE);
-      
-            if (topic == null)
-            {
-                throw new ApplicationException("create_topic error");
-            }
+
+            if (topic == null) throw new ApplicationException("create_topic error");
             /* DDS.DataWriterQos dw_qos = new DDS.DataWriterQos();
       participant.get_default_datawriter_qos(dw_qos);
       dw_qos.reliability.kind = DDS.ReliabilityQosPolicyKind.RELIABLE_RELIABILITY_QOS;
@@ -96,15 +83,9 @@ namespace RTI.RxDDS
                 DDS.Publisher.DATAWRITER_QOS_DEFAULT,
                 null /* listener */,
                 DDS.StatusMask.STATUS_MASK_NONE);
-            if (writer == null)
-            {
-                throw new ApplicationException("create_datawriter error");
-            }
+            if (writer == null) throw new ApplicationException("create_datawriter error");
 
             return (DDS.TypedDataWriter<T>) writer;
         }
-
-        private static DDS.DomainParticipant participant;
-        private static int domainId = 0;
-    };
+    }
 }

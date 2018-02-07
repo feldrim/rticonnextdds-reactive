@@ -72,7 +72,6 @@
     <Compile Include="ObservableTopicWaitSet.cs" />
     <Compile Include="OperatorBase.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="rxdds.cs" />
     <Compile Include="StatusKindPrinter.cs" />
   </ItemGroup>
   <ItemGroup>

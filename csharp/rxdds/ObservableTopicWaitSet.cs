@@ -4,97 +4,110 @@ using System.Reactive.Subjects;
 
 namespace RTI.RxDDS
 {
-    class ObservableTopicWaitSet<T> : IObservable<T> where T : class , DDS.ICopyable<T>, new()
+    internal class ObservableTopicWaitSet<T> : IObservable<T> where T : class, DDS.ICopyable<T>, new()
     {
+        private readonly DDS.UserRefSequence<T> _dataSeq = new DDS.UserRefSequence<T>();
+        private readonly DDS.SampleInfoSeq _infoSeq = new DDS.SampleInfoSeq();
+
+        private readonly object _mutex;
+        private readonly DDS.DomainParticipant _participant;
+        private DDS.DataReader _reader;
+        private readonly IScheduler _scheduler;
+        private DDS.StatusCondition _statusCondition;
+        private ISubject<T, T> _subject;
+        private readonly DDS.Duration_t _timeout;
+        private readonly string _topicName;
+        private readonly string _typeName;
+        private DDS.WaitSet _waitset;
+
         public ObservableTopicWaitSet(DDS.DomainParticipant participant,
             string topicName,
             string typeName,
             DDS.Duration_t tmout)
         {
-            mutex = new Object();
+            _mutex = new object();
 
-            this.scheduler = new EventLoopScheduler();
-            this.timeout = tmout;
+            _scheduler = new EventLoopScheduler();
+            _timeout = tmout;
 
-            if (typeName == null)
-                this.typeName = typeof(T).ToString();
-            else
-                this.typeName = typeName;
+            _typeName = typeName ?? typeof(T).ToString();
 
-            this.participant = participant;
-            this.topicName = topicName;
+            _participant = participant;
+            _topicName = topicName;
 
-            if (this.scheduler == null ||
-                this.typeName == null ||
-                this.participant == null ||
-                this.topicName == null)
-            {
+            if (_scheduler == null ||
+                _typeName == null ||
+                _participant == null ||
+                _topicName == null)
                 throw new ArgumentNullException("ObservableTopic: Null parameters detected");
+        }
+
+        public IDisposable Subscribe(IObserver<T> observer)
+        {
+            lock (_mutex)
+            {
+                if (_subject != null) return _subject.Subscribe(observer);
+                _subject = new Subject<T>();
+                initializeDataReader(_participant);
+                _scheduler.Schedule(_ => { receiveData(); });
             }
+
+            return _subject.Subscribe(observer);
         }
 
         public void Dispose()
         {
-
         }
+
         private void initializeDataReader(DDS.DomainParticipant participant)
         {
             DDS.Subscriber subscriber = participant.create_subscriber(
                 DDS.DomainParticipant.SUBSCRIBER_QOS_DEFAULT,
                 null /* listener */,
                 DDS.StatusMask.STATUS_MASK_NONE);
-            if (subscriber == null)
-            {
-                throw new ApplicationException("create_subscriber error");
-            }
+            if (subscriber == null) throw new ApplicationException("create_subscriber error");
 
             DDS.Topic topic = participant.create_topic(
-                topicName,
-                typeName,
+                _topicName,
+                _typeName,
                 DDS.DomainParticipant.TOPIC_QOS_DEFAULT,
                 null /* listener */,
                 DDS.StatusMask.STATUS_MASK_NONE);
-            if (topic == null)
-            {
-                throw new ApplicationException("create_topic error");
-            }
+            if (topic == null) throw new ApplicationException("create_topic error");
 
             /* To customize the data reader QoS, use 
            the configuration file USER_QOS_PROFILES.xml */
-            reader = subscriber.create_datareader(
+            _reader = subscriber.create_datareader(
                 topic,
                 DDS.Subscriber.DATAREADER_QOS_DEFAULT,
                 null,
                 DDS.StatusMask.STATUS_MASK_ALL);
 
-            if (reader == null)
-            {
-                throw new ApplicationException("create_datareader error");
-            }
- 
-            status_condition = reader.get_statuscondition();
+            if (_reader == null) throw new ApplicationException("create_datareader error");
+
+            _statusCondition = _reader.get_statuscondition();
 
             try
             {
-                int mask =
-                    (int) DDS.StatusKind.DATA_AVAILABLE_STATUS       |
+                var mask =
+                    (int) DDS.StatusKind.DATA_AVAILABLE_STATUS |
                     (int) DDS.StatusKind.SUBSCRIPTION_MATCHED_STATUS |
-                    (int) DDS.StatusKind.LIVELINESS_CHANGED_STATUS   |
-                    (int) DDS.StatusKind.SAMPLE_LOST_STATUS          |
+                    (int) DDS.StatusKind.LIVELINESS_CHANGED_STATUS |
+                    (int) DDS.StatusKind.SAMPLE_LOST_STATUS |
                     (int) DDS.StatusKind.SAMPLE_REJECTED_STATUS;
-              
-                status_condition.set_enabled_statuses((DDS.StatusMask) mask);
+
+                _statusCondition.set_enabled_statuses((DDS.StatusMask) mask);
             }
             catch (DDS.Exception e)
             {
                 throw new ApplicationException("set_enabled_statuses error {0}", e);
             }
 
-            waitset = new DDS.WaitSet();
+            _waitset = new DDS.WaitSet();
 
             try
             {
-                waitset.attach_condition(status_condition);
+                _waitset.attach_condition(_statusCondition);
             }
             catch (DDS.Exception e)
             {
@@ -102,21 +115,18 @@ namespace RTI.RxDDS
             }
         }
 
-        private void receiveData() 
+        private void receiveData()
         {
-            int count = 0;
-            DDS.ConditionSeq active_conditions = new DDS.ConditionSeq();
+            DDS.ConditionSeq activeConditions = new DDS.ConditionSeq();
             while (true)
-            {
                 try
                 {
-                    waitset.wait(active_conditions, timeout);
-                    for (int c = 0; c < active_conditions.length; ++c)
-                    {
-                        if (active_conditions.get_at(c) == status_condition)
+                    _waitset.wait(activeConditions, _timeout);
+                    for (var c = 0; c < activeConditions.length; ++c)
+                        if (activeConditions.get_at(c) == _statusCondition)
                         {
                             DDS.StatusMask triggeredmask =
-                                reader.get_status_changes();
+                                _reader.get_status_changes();
 
                             if ((triggeredmask &
                                  (DDS.StatusMask)
@@ -125,125 +135,93 @@ namespace RTI.RxDDS
                                 try
                                 {
                                     DDS.TypedDataReader<T> dataReader
-                                        = (DDS.TypedDataReader<T>)reader;
+                                        = (DDS.TypedDataReader<T>) _reader;
 
                                     dataReader.take(
-                                        dataSeq,
-                                        infoSeq,
+                                        _dataSeq,
+                                        _infoSeq,
                                         DDS.ResourceLimitsQosPolicy.LENGTH_UNLIMITED,
                                         DDS.SampleStateKind.ANY_SAMPLE_STATE,
                                         DDS.ViewStateKind.ANY_VIEW_STATE,
                                         DDS.InstanceStateKind.ANY_INSTANCE_STATE);
 
-                                    System.Int32 dataLength = dataSeq.length;
+                                    int dataLength = _dataSeq.length;
                                     //Console.WriteLine("Received {0}", dataLength);
-                                    for (int i = 0; i < dataLength; ++i)
-                                    {
-                                        if (infoSeq.get_at(i).valid_data)
+                                    for (var i = 0; i < dataLength; ++i)
+                                        if (_infoSeq.get_at(i).valid_data)
                                         {
-                                            T temp = new T();
-                                            temp.copy_from(dataSeq.get_at(i));
-                                            subject.OnNext(temp);
+                                            var temp = new T();
+                                            temp.copy_from(_dataSeq.get_at(i));
+                                            _subject.OnNext(temp);
                                         }
-                                        else if (infoSeq.get_at(i).instance_state ==
+                                        else if (_infoSeq.get_at(i).instance_state ==
                                                  DDS.InstanceStateKind.NOT_ALIVE_DISPOSED_INSTANCE_STATE)
                                         {
-
                                             /* FIXME: If the instance comes back online, 
                                          * it will break the Rx contract. */
                                             //Console.WriteLine("OnCompleted CALLED FROM LIB CODE on tid "+ 
                                             //System.Threading.Thread.CurrentThread.ManagedThreadId);
-                                            subject.OnCompleted();
+                                            _subject.OnCompleted();
                                         }
-                                    }
 
-                                    dataReader.return_loan(dataSeq, infoSeq);
+                                    dataReader.return_loan(_dataSeq, _infoSeq);
                                 }
                                 catch (DDS.Retcode_NoData)
                                 {
-                                    subject.OnCompleted();
+                                    _subject.OnCompleted();
                                     return;
                                 }
                                 catch (Exception ex)
                                 {
-                                    subject.OnError(ex);
-                                    Console.WriteLine("ObservableTopicWaitSet: take error {0}", ex);
+                                    _subject.OnError(ex);
+                                    Console.WriteLine($"ObservableTopicWaitSet: take error {ex}");
                                 }
                             }
                             else
                             {
                                 StatusKindPrinter.print((int) triggeredmask);
-                                if((triggeredmask & 
-                                    (DDS.StatusMask) 
-                                    DDS.StatusKind.SUBSCRIPTION_MATCHED_STATUS) != 0)
+                                if ((triggeredmask &
+                                     (DDS.StatusMask)
+                                     DDS.StatusKind.SUBSCRIPTION_MATCHED_STATUS) != 0)
                                 {
                                     DDS.SubscriptionMatchedStatus status = new DDS.SubscriptionMatchedStatus();
-                                    reader.get_subscription_matched_status(ref status);
-                                    Console.WriteLine("Subscription matched. current_count = {0}", status.current_count);
+                                    _reader.get_subscription_matched_status(ref status);
+                                    Console.WriteLine($"Subscription matched. current_count = {status.current_count}");
                                 }
-                                if ((triggeredmask & 
-                                     (DDS.StatusMask) 
+
+                                if ((triggeredmask &
+                                     (DDS.StatusMask)
                                      DDS.StatusKind.LIVELINESS_CHANGED_STATUS) != 0)
                                 {
                                     DDS.LivelinessChangedStatus status = new DDS.LivelinessChangedStatus();
-                                    reader.get_liveliness_changed_status(ref status);
-                                    Console.WriteLine("Liveliness changed. alive_count = {0}", status.alive_count);
+                                    _reader.get_liveliness_changed_status(ref status);
+                                    Console.WriteLine($"Liveliness changed. alive_count = {status.alive_count}");
                                 }
-                                if((triggeredmask & 
-                                    (DDS.StatusMask) 
-                                    DDS.StatusKind.SAMPLE_LOST_STATUS) != 0)
+
+                                if ((triggeredmask &
+                                     (DDS.StatusMask)
+                                     DDS.StatusKind.SAMPLE_LOST_STATUS) != 0)
                                 {
                                     DDS.SampleLostStatus status = new DDS.SampleLostStatus();
-                                    reader.get_sample_lost_status(ref status);
-                                    Console.WriteLine("Sample lost. Reason = {0}", status.last_reason.ToString());
+                                    _reader.get_sample_lost_status(ref status);
+                                    Console.WriteLine($"Sample lost. Reason = {status.last_reason.ToString()}");
                                 }
-                                if ((triggeredmask & 
-                                     (DDS.StatusMask) 
+
+                                if ((triggeredmask &
+                                     (DDS.StatusMask)
                                      DDS.StatusKind.SAMPLE_REJECTED_STATUS) != 0)
                                 {
                                     DDS.SampleRejectedStatus status = new DDS.SampleRejectedStatus();
-                                    reader.get_sample_rejected_status(ref status);
-                                    Console.WriteLine("Sample Rejected. Reason = {0}", status.last_reason.ToString());
+                                    _reader.get_sample_rejected_status(ref status);
+                                    Console.WriteLine($"Sample Rejected. Reason = {status.last_reason.ToString()}");
                                 }
                             }
                         }
-                    }
                 }
                 catch (DDS.Retcode_Timeout)
                 {
                     Console.WriteLine("wait timed out");
-                    count += 2;
-                    continue;
                 }
-            }
         }
-
-        public IDisposable Subscribe(IObserver<T> observer)
-        {
-            lock (mutex)
-            {
-                if (subject == null)
-                {
-                    subject = new Subject<T>();
-                    initializeDataReader(participant);
-                    scheduler.Schedule(_ => { receiveData(); });
-                }
-            }
-
-            return subject.Subscribe(observer);
-        }
-
-        private Object mutex;
-        private DDS.DomainParticipant participant;
-        private DDS.DataReader reader;
-        private DDS.StatusCondition status_condition;
-        private DDS.WaitSet waitset;
-        private DDS.Duration_t timeout;
-        private IScheduler scheduler;
-        private string topicName;
-        private string typeName;
-        private ISubject<T, T> subject;
-        private DDS.UserRefSequence<T> dataSeq = new DDS.UserRefSequence<T>();
-        private DDS.SampleInfoSeq infoSeq = new DDS.SampleInfoSeq();
-    };
+    }
 }
