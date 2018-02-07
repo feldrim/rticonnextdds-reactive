@@ -1,9 +1,11 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Reactive.Concurrency;
 using System.Reactive.Subjects;
 
 namespace RTI.RxDDS
 {
+    [SuppressMessage("ReSharper", "NotResolvedInText")]
     internal class ObservableTopicWaitSet<T> : IObservable<T> where T : class, DDS.ICopyable<T>, new()
     {
         private readonly DDS.UserRefSequence<T> _dataSeq = new DDS.UserRefSequence<T>();
@@ -11,13 +13,13 @@ namespace RTI.RxDDS
 
         private readonly object _mutex;
         private readonly DDS.DomainParticipant _participant;
-        private DDS.DataReader _reader;
         private readonly IScheduler _scheduler;
-        private DDS.StatusCondition _statusCondition;
-        private ISubject<T, T> _subject;
         private readonly DDS.Duration_t _timeout;
         private readonly string _topicName;
         private readonly string _typeName;
+        private DDS.DataReader _reader;
+        private DDS.StatusCondition _statusCondition;
+        private ISubject<T, T> _subject;
         private DDS.WaitSet _waitset;
 
         public ObservableTopicWaitSet(DDS.DomainParticipant participant,

@@ -11,13 +11,13 @@ namespace RTI.RxDDS
             IObservable<IList<IGroupedObservable<TKey, T>>>
     {
         private readonly Func<TSeedType, IList<IGroupedObservable<TKey, T>>, TSeedType> _aggregator;
-
-        private bool _completed;
         private readonly object _guard;
-        private TSeedType _seed;
         private readonly IObservable<IGroupedObservable<TKey, T>> _source;
         private readonly IList<IGroupedObservable<TKey, T>> _streamList;
         private readonly Subject<IList<IGroupedObservable<TKey, T>>> _subject;
+
+        private bool _completed;
+        private TSeedType _seed;
 
         public ActiveKeyScanOp(IObservable<IGroupedObservable<TKey, T>> source,
             TSeedType seed,

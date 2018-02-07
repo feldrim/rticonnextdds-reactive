@@ -11,16 +11,16 @@ namespace RTI.RxDDS
     internal class ObservableKeyedTopicWaitSet<TKey, T> : IObservable<IGroupedObservable<TKey, T>>
         where T : class, DDS.ICopyable<T>, new()
     {
-        private IEqualityComparer<TKey> _comparer;
         private readonly DDS.UserRefSequence<T> _dataSeq = new DDS.UserRefSequence<T>();
 
         private readonly bool _externalSubDict;
+        private readonly DDS.SampleInfoSeq _infoSeq = new DDS.SampleInfoSeq();
+        private IEqualityComparer<TKey> _comparer;
 
         private ISubject<IGroupedObservable<TKey, T>,
             IGroupedObservable<TKey, T>> _groupSubject;
 
         private Dictionary<DDS.InstanceHandle_t, TKey> _handleKeyDict;
-        private readonly DDS.SampleInfoSeq _infoSeq = new DDS.SampleInfoSeq();
         private Dictionary<TKey, DDSKeyedSubject<TKey, T>> _keyedSubjectDict;
         private Func<T, TKey> _keySelector;
         private object _mutex;
@@ -147,13 +147,13 @@ namespace RTI.RxDDS
             try
             {
                 var mask =
-                    (int)DDS.StatusKind.DATA_AVAILABLE_STATUS |
-                    (int)DDS.StatusKind.SUBSCRIPTION_MATCHED_STATUS |
-                    (int)DDS.StatusKind.LIVELINESS_CHANGED_STATUS |
-                    (int)DDS.StatusKind.SAMPLE_LOST_STATUS |
-                    (int)DDS.StatusKind.SAMPLE_REJECTED_STATUS;
+                    (int) DDS.StatusKind.DATA_AVAILABLE_STATUS |
+                    (int) DDS.StatusKind.SUBSCRIPTION_MATCHED_STATUS |
+                    (int) DDS.StatusKind.LIVELINESS_CHANGED_STATUS |
+                    (int) DDS.StatusKind.SAMPLE_LOST_STATUS |
+                    (int) DDS.StatusKind.SAMPLE_REJECTED_STATUS;
 
-                _statusCondition.set_enabled_statuses((DDS.StatusMask)mask);
+                _statusCondition.set_enabled_statuses((DDS.StatusMask) mask);
             }
             catch (DDS.Exception e)
             {
@@ -214,7 +214,7 @@ namespace RTI.RxDDS
                                 try
                                 {
                                     DDS.TypedDataReader<T> dataReader
-                                        = (DDS.TypedDataReader<T>)_reader;
+                                        = (DDS.TypedDataReader<T>) _reader;
 
                                     dataReader.take(
                                         _dataSeq,
@@ -299,7 +299,7 @@ namespace RTI.RxDDS
                             }
                             else
                             {
-                                StatusKindPrinter.print((int)triggeredmask);
+                                StatusKindPrinter.print((int) triggeredmask);
                                 if ((triggeredmask &
                                      (DDS.StatusMask)
                                      DDS.StatusKind.SUBSCRIPTION_MATCHED_STATUS) != 0)

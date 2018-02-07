@@ -104,7 +104,9 @@ namespace RTI.RxDDS
                     {
                         try
                         {
-                            seed = limitedQueue.Shift(value, out var outObj) ? accumulator(seed, value, outObj, limitedQueue.Count) : windowDrainer(seed, value, limitedQueue.Count, limitedQueue.Count - 1);
+                            seed = limitedQueue.Shift(value, out var outObj)
+                                ? accumulator(seed, value, outObj, limitedQueue.Count)
+                                : windowDrainer(seed, value, limitedQueue.Count, limitedQueue.Count - 1);
                             observer.OnNext(seed);
                         }
                         catch (Exception ex)
@@ -240,7 +242,9 @@ namespace RTI.RxDDS
             Func<bool> conditional,
             Action<TSource> action)
         {
-            return !conditional() ? source : Observable.Create<TSource>(observer => source.Do(action).Subscribe(observer));
+            return !conditional()
+                ? source
+                : Observable.Create<TSource>(observer => source.Do(action).Subscribe(observer));
         }
 
         public static IObservable<TSource> DoIf<TSource>

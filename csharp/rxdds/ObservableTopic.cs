@@ -8,14 +8,13 @@ namespace RTI.RxDDS
     [SuppressMessage("ReSharper", "NotResolvedInText")]
     internal class ObservableTopic<T> : IObservable<T> where T : class, DDS.ICopyable<T>, new()
     {
-        private DataReaderListener _listener;
-
         private readonly object _mutex;
         private readonly DDS.DomainParticipant _participant;
         private readonly IScheduler _scheduler;
-        private ISubject<T, T> _subject;
         private readonly string _topicName;
         private readonly string _typeName;
+        private DataReaderListener _listener;
+        private ISubject<T, T> _subject;
 
         public ObservableTopic(DDS.DomainParticipant participant,
             string topicName,
@@ -90,8 +89,8 @@ namespace RTI.RxDDS
         {
             private readonly DDS.UserRefSequence<T> _dataSeq;
             private readonly DDS.SampleInfoSeq _infoSeq;
-            private IScheduler _scheduler;
             private readonly ISubject<T, T> _subject;
+            private IScheduler _scheduler;
 
             public DataReaderListener(ISubject<T, T> subject, IScheduler scheduler)
             {

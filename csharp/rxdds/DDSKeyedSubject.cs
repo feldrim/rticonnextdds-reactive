@@ -7,8 +7,8 @@ namespace RTI.RxDDS
 {
     public class DDSKeyedSubject<TKey, T> : IGroupedObservable<TKey, T>, IObserver<T>
     {
-        private IScheduler _scheduler;
         private readonly ISubject<T, T> _sub;
+        private IScheduler _scheduler;
 
         public DDSKeyedSubject(TKey key, IScheduler scheduler = null)
         {

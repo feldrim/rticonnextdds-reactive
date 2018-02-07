@@ -9,9 +9,8 @@ namespace RTI.RxDDS
     internal class ObservableKeyedTopic<TKey, T> : IObservable<IGroupedObservable<TKey, T>>
         where T : class, DDS.ICopyable<T>, new()
     {
-        private IEqualityComparer<TKey> _comparer;
-
         private readonly bool _externalSubDict;
+        private IEqualityComparer<TKey> _comparer;
 
         private ISubject<IGroupedObservable<TKey, T>,
             IGroupedObservable<TKey, T>> _groupSubject;
@@ -121,7 +120,8 @@ namespace RTI.RxDDS
             if (topic == null) throw new ApplicationException("create_topic error");
 
             _listener = new InstanceDataReaderListener(
-                _groupSubject, _keyedSubjectDict, _keySelector, _comparer, _handleKeyDict, _scheduler, _externalSubDict);
+                _groupSubject, _keyedSubjectDict, _keySelector, _comparer, _handleKeyDict, _scheduler,
+                _externalSubDict);
 
             DDS.DataReaderQos rQos = new DDS.DataReaderQos();
             participant.get_default_datareader_qos(rQos);
@@ -156,7 +156,6 @@ namespace RTI.RxDDS
 
         private class InstanceDataReaderListener : DataReaderListenerAdapter
         {
-            private IEqualityComparer<TKey> _comparer;
             private readonly DDS.UserRefSequence<T> _dataSeq;
 
             private readonly bool _externalSubDict;
@@ -166,6 +165,7 @@ namespace RTI.RxDDS
             private readonly Func<T, TKey> _keySelector;
             private readonly IObserver<IGroupedObservable<TKey, T>> _observer;
             private readonly IScheduler _scheduler;
+            private IEqualityComparer<TKey> _comparer;
 
             public InstanceDataReaderListener(IObserver<IGroupedObservable<TKey, T>> observer,
                 Dictionary<TKey, DDSKeyedSubject<TKey, T>> dict,
