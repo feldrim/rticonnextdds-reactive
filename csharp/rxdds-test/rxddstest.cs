@@ -24,7 +24,7 @@ using RTI.RxDDS;
 public class Processor
 {
 
-  private ShapeTypeExtended[] test_shape_vals = new ShapeTypeExtended[10] {
+  private ShapeTypeExtended[] _testShapeVals = new ShapeTypeExtended[10] {
           new ShapeTypeExtended { x = 50,  y = 50,  color="BLUE", shapesize = 30  },
           new ShapeTypeExtended { x = 51,  y = 51,  color="BLUE", shapesize = 30  },
           new ShapeTypeExtended { x = 52,  y = 52,  color="BLUE", shapesize = 30  },
@@ -43,8 +43,7 @@ public class Processor
 
     if (args.Length >= 1)
     {
-      int domainId = 0;
-      if (!Int32.TryParse(args[0], out domainId))
+        if (!int.TryParse(args[0], out var domainId))
       {
         Console.WriteLine("Invalid domainId. Quitting...");
         return;
@@ -58,14 +57,14 @@ public class Processor
     {
       DefaultParticipant.RegisterType<ShapeTypeExtended, ShapeTypeExtendedTypeSupport>();
 
-      Processor proc = new Processor();
-      proc.triangle_writer =
-        DefaultParticipant.CreateDataWriter<ShapeTypeExtended>("Triangle");
+        var proc = new Processor
+        {
+            _triangleWriter = DefaultParticipant.CreateDataWriter<ShapeTypeExtended>("Triangle"),
+            _circleWriter = DefaultParticipant.CreateDataWriter<ShapeTypeExtended>("Circle")
+        };
 
-      proc.circle_writer =
-        DefaultParticipant.CreateDataWriter<ShapeTypeExtended>("Circle");
 
-      IDisposable disposable = null;
+        IDisposable disposable = null;
 
       //int workerThreads, completionPortThreads;
       //System.Threading.ThreadPool.GetMaxThreads(out workerThreads, out completionPortThreads);
@@ -75,120 +74,167 @@ public class Processor
       IScheduler scheduler;
       if (args.Length >= 3)
       {
-        if (args[2] == "Default")
-          scheduler = Scheduler.Default;
-        else if (args[2] == "ThreadPool")
-          scheduler = Scheduler.Default;
-        else if (args[2] == "Immediate")
-          scheduler = Scheduler.Immediate;
-        else if (args[2] == "CurrentThread")
-          scheduler = Scheduler.CurrentThread;
-        else if (args[2] == "TaskPool")
-          scheduler = TaskPoolScheduler.Default;
-        else if (args[2] == "EventLoop")
-          scheduler = new EventLoopScheduler();
-        else
-          throw new ApplicationException("Unknown Scheduler!");
+          switch (args[2])
+          {
+              case "Default":
+                  scheduler = Scheduler.Default;
+                  break;
+              case "ThreadPool":
+                  scheduler = Scheduler.Default;
+                  break;
+              case "Immediate":
+                  scheduler = Scheduler.Immediate;
+                  break;
+              case "CurrentThread":
+                  scheduler = Scheduler.CurrentThread;
+                  break;
+              case "TaskPool":
+                  scheduler = TaskPoolScheduler.Default;
+                  break;
+              case "EventLoop":
+                  scheduler = new EventLoopScheduler();
+                  break;
+              default:
+                  throw new ApplicationException("Unknown Scheduler!");
+          }
       }
       else
         scheduler = Scheduler.Immediate;
 
       if (args.Length >= 2)
       {
-        if (args[1] == "demo1")
-          disposable = proc.demo1(participant, scheduler);
-        if (args[1] == "demo2")
-          disposable = proc.demo2(participant, scheduler);
-        if (args[1] == "demo3")
-          disposable = proc.demo3(participant);
-        if (args[1] == "demo4")
-          disposable = proc.demo4(participant);
-        if (args[1] == "demo5")
-          disposable = proc.demo5(participant, scheduler);
-        if (args[1] == "forward")
-          disposable = proc.forward(participant);
-        else if (args[1] == "forward_short")
-          disposable = proc.forward_short(participant);
-        else if (args[1] == "forward_shortest")
-          disposable = proc.forward_shortest(participant);
-        else if (args[1] == "swap")
-          disposable = proc.swap(participant);
-        else if (args[1] == "swap_shortest")
-          disposable = proc.swap(participant);
-        else if (args[1] == "flower")
-          disposable = proc.flower(participant);
-        else if (args[1] == "instance_forward")
-          disposable = proc.instance_forward(participant);
-        else if (args[1] == "aggregator")
-          disposable = proc.aggregator(participant);
-        else if (args[1] == "collisions_combinelatest")
-          disposable = proc.collisions_combinelatest(participant, scheduler);
-        else if (args[1] == "collisions")
-          disposable = proc.collisions(participant, scheduler);
-        else if (args[1] == "single_circle_correlator")
-          disposable = proc.single_circle_correlator(participant);
-        else if (args[1] == "selectmany_correlator")
-          disposable = proc.selectmany_correlator(participant, false);
-        else if (args[1] == "selectmany_correlator_linq")
-          disposable = proc.selectmany_correlator(participant, true);
-        else if (args[1] == "selectmany_groupby_correlator")
-          disposable = proc.selectmany_groupby_correlator(participant);
-        else if (args[1] == "many_circle_correlator")
-          disposable = proc.many_circle_correlator(participant, scheduler);
-        else if (args[1] == "circle_zip_correlator")
-          disposable = proc.circle_zip_correlator(participant);
-        else if (args[1] == "splitterDelayNAverageWindow")
-          disposable = proc.splitterDelayNAverageWindow(participant);
-        else if (args[1] == "splitterDelayNAverage")
-          disposable = proc.splitterDelayNAverage(participant);
-        else if (args[1] == "timeWindowAggregator")
-          disposable = proc.timeWindowAggregator(participant, scheduler);
-        else if (args[1] == "key_correlator_flat")
-          disposable = proc.key_correlator_flat(participant);
-        else if (args[1] == "key_correlator_grouped")
-          disposable = proc.key_correlator_grouped(participant);
-        else if (args[1] == "key_correlator_replay")
-          disposable = proc.key_correlator_replay(participant, false);
-        else if (args[1] == "key_correlator_replay_linq")
-          disposable = proc.key_correlator_replay(participant, true);
-        else if (args[1] == "key_correlator_zip4")
-          disposable = proc.key_correlator_zip4(participant);
-        else if (args[1] == "key_correlator_zipN")
+        switch (args[1])
         {
-          int n = 8;
-          if (args.Length == 2)
-            n = Int32.Parse(args[1]);
+            case "demo1":
+                disposable = proc.Demo1(participant, scheduler);
+                break;
+            case "demo2":
+                disposable = proc.Demo2(participant, scheduler);
+                break;
+            case "demo3":
+                disposable = proc.Demo3(participant);
+                break;
+            case "demo4":
+                disposable = proc.Demo4(participant);
+                break;
+            case "demo5":
+                disposable = proc.Demo5(participant, scheduler);
+                break;
+            case "forward":
+                disposable = proc.Forward(participant);
+                break;
+            case "forward_short":
+                disposable = proc.forward_short(participant);
+                break;
+            case "forward_shortest":
+                disposable = proc.forward_shortest(participant);
+                break;
+            case "swap":
+                disposable = proc.Swap(participant);
+                break;
+            case "swap_shortest":
+                disposable = proc.Swap(participant);
+                break;
+            case "flower":
+                disposable = proc.Flower(participant);
+                break;
+            case "instance_forward":
+                disposable = proc.instance_forward(participant);
+                break;
+            case "aggregator":
+                disposable = proc.Aggregator(participant);
+                break;
+            case "collisions_combinelatest":
+                disposable = proc.collisions_combinelatest(participant, scheduler);
+                break;
+            case "collisions":
+                disposable = proc.Collisions(participant, scheduler);
+                break;
+            case "single_circle_correlator":
+                disposable = proc.single_circle_correlator(participant);
+                break;
+            case "selectmany_correlator":
+                disposable = proc.selectmany_correlator(participant, false);
+                break;
+            case "selectmany_correlator_linq":
+                disposable = proc.selectmany_correlator(participant, true);
+                break;
+            case "selectmany_groupby_correlator":
+                disposable = proc.selectmany_groupby_correlator(participant);
+                break;
+            case "many_circle_correlator":
+                disposable = proc.Many_circle_correlator(participant, scheduler);
+                break;
+            case "circle_zip_correlator":
+                disposable = proc.circle_zip_correlator(participant);
+                break;
+            case "splitterDelayNAverageWindow":
+                disposable = proc.SplitterDelayNAverageWindow(participant);
+                break;
+            case "splitterDelayNAverage":
+                disposable = proc.SplitterDelayNAverage(participant);
+                break;
+            case "timeWindowAggregator":
+                disposable = proc.TimeWindowAggregator(participant, scheduler);
+                break;
+            case "key_correlator_flat":
+                disposable = proc.key_correlator_flat(participant);
+                break;
+            case "key_correlator_grouped":
+                disposable = proc.Key_correlator_grouped(participant);
+                break;
+            case "key_correlator_replay":
+                disposable = proc.key_correlator_replay(participant, false);
+                break;
+            case "key_correlator_replay_linq":
+                disposable = proc.key_correlator_replay(participant, true);
+                break;
+            case "key_correlator_zip4":
+                disposable = proc.key_correlator_zip4(participant);
+                break;
+            case "key_correlator_zipN":
+                var n = 8;
+                if (args.Length == 2)
+                    n = int.Parse(args[1]);
 
-          disposable = proc.key_correlator_zipN(participant, n);
+                disposable = proc.Key_correlator_zipN(participant, n);
+                break;
+            case "key_correlator_dynamic":
+                disposable = proc.Key_correlator_dynamic(participant, scheduler);
+                break;
+            case "once":
+                disposable = proc.Once(participant);
+                break;
+            case "join":
+                disposable = proc.Join(participant);
+                break;
+            case "orbit":
+                disposable = proc.Orbit(participant);
+                break;
+            case "orbitSquare":
+                disposable = proc.OrbitSquare(participant);
+                break;
+            case "orbitTwo":
+                disposable = proc.OrbitTwo(participant);
+                break;
+            case "solarSystem":
+                disposable = proc.SolarSystem(participant);
+                break;
+            case "shapewriter":
+                disposable = proc.Shapewriter(participant);
+                break;
+            case "groupJoinInfiniteInner":
+                disposable = proc.GroupJoinInfiniteInner();
+                break;
         }
-        else if (args[1] == "key_correlator_dynamic")
-          disposable = proc.key_correlator_dynamic(participant, scheduler);
-        else if (args[1] == "once")
-            disposable = proc.once(participant);
-        else if (args[1] == "join")
-            disposable = proc.join(participant);
-        else if (args[1] == "orbit")
-            disposable = proc.orbit(participant);
-        else if (args[1] == "orbitSquare")
-            disposable = proc.orbitSquare(participant);
-        else if (args[1] == "orbitTwo")
-            disposable = proc.orbitTwo(participant);
-        else if (args[1] == "solarSystem")
-            disposable = proc.solarSystem(participant);
-        else if (args[1] == "shapewriter")
-            disposable = proc.shapewriter(participant);
-        else if (args[1] == "groupJoinInfiniteInner")
-            disposable = proc.groupJoinInfiniteInner();
       }
 
       for (; disposable != null; )
       {
-        ConsoleKeyInfo info = Console.ReadKey(true);
-        if (info.Key == ConsoleKey.Enter)
-        {
+        var info = Console.ReadKey(true);
+          if (info.Key != ConsoleKey.Enter) continue;
           disposable.Dispose();
           break;
-        }
       }
     }
     catch (DDS.Exception e)
@@ -204,23 +250,23 @@ public class Processor
     DefaultParticipant.Shutdown();
   }
 
-  /* forward */
-  IDisposable demo1(DDS.DomainParticipant participant, IScheduler scheduler)
+    /* forward */
+    private IDisposable Demo1(DDS.DomainParticipant participant, IScheduler scheduler)
   {
-    var rx_reader = DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square");
+    var rxReader = DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square");
 
-    IDisposable disposable =
-        rx_reader.OnDataAvailable((ShapeTypeExtended shape) =>
+    var disposable =
+        rxReader.OnDataAvailable((ShapeTypeExtended shape) =>
         {
           DDS.InstanceHandle_t handle = DDS.InstanceHandle_t.HANDLE_NIL;
-          triangle_writer.write(shape, ref handle);
+          _triangleWriter.write(shape, ref handle);
         });
 
     return disposable;
   }
 
-  /* forward_short */
-  IDisposable demo2(DDS.DomainParticipant participant, IScheduler scheduler)
+    /* forward_short */
+    private IDisposable Demo2(DDS.DomainParticipant participant, IScheduler scheduler)
   {
     // In this example Scheduler.Default appears to be indistinguishable from Scheduler.TaskPool.
     return
@@ -229,12 +275,12 @@ public class Processor
         .Subscribe((ShapeTypeExtended shape) =>
         {
           DDS.InstanceHandle_t handle = DDS.InstanceHandle_t.HANDLE_NIL;
-          triangle_writer.write(shape, ref handle);
+          _triangleWriter.write(shape, ref handle);
         });
   }
 
-  /* forward_shortest */
-  IDisposable demo3(DDS.DomainParticipant participant)
+    /* forward_shortest */
+    private IDisposable Demo3(DDS.DomainParticipant participant)
   {
     DDS.Duration_t timeout;
     timeout.nanosec = 0;
@@ -242,17 +288,17 @@ public class Processor
 
     return DDSObservable
             .FromTopicWaitSet<ShapeTypeExtended>(participant, "Square", timeout)
-            .Subscribe(triangle_writer);
+            .Subscribe(_triangleWriter);
   }
 
-  /* swap */
-  IDisposable demo4(DDS.DomainParticipant participant)
+    /* swap */
+    private IDisposable Demo4(DDS.DomainParticipant participant)
   {
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square");
 
     return
-    rx_square_reader.Select((ShapeTypeExtended shape) =>
+    rxSquareReader.Select((ShapeTypeExtended shape) =>
     {
         return new ShapeTypeExtended
         {
@@ -262,23 +308,23 @@ public class Processor
             shapesize = shape.shapesize
         };
     })
-    .DisposeAtEnd(triangle_writer,
+    .DisposeAtEnd(_triangleWriter,
                   new ShapeTypeExtended { color = "BLUE" })
     .Subscribe();
 
   }
 
-  /* correlator */
-  IDisposable demo5(DDS.DomainParticipant participant, IScheduler scheduler)
+    /* correlator */
+    private IDisposable Demo5(DDS.DomainParticipant participant, IScheduler scheduler)
   {
-    var rx_circle_reader =
+    var rxCircleReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Circle", Scheduler.Default);
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square", Scheduler.Default);
 
     var correlator =
-        from square in rx_square_reader
-        from circle in rx_circle_reader.Take(1)
+        from square in rxSquareReader
+        from circle in rxCircleReader.Take(1)
         where square.color == circle.color
         select new ShapeTypeExtended
         {
@@ -289,30 +335,30 @@ public class Processor
         };
 
     return correlator.Do(_ => Console.WriteLine("ThreadId = {0}", System.Threading.Thread.CurrentThread.ManagedThreadId))
-                     .Subscribe(triangle_writer);
+                     .Subscribe(_triangleWriter);
   }
 
-  IDisposable timeWindowAggregator(DDS.DomainParticipant participant, IScheduler scheduler)
+    private IDisposable TimeWindowAggregator(DDS.DomainParticipant participant, IScheduler scheduler)
   {
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromKeyedTopic<string, ShapeTypeExtended>(
             participant, "Square", shape => shape.color);
     //test_shape_vals.ToObservable().GroupBy(shape => shape.color);
 
     /* Extremely stable memory consumption */
     return
-        rx_square_reader
-        .Subscribe((IGroupedObservable<string, ShapeTypeExtended> square_instance) =>
+        rxSquareReader
+        .Subscribe((IGroupedObservable<string, ShapeTypeExtended> squareInstance) =>
         {
-            square_instance
+            squareInstance
                 .ObserveOn(scheduler)
                 .TimeWindowAggregate(
                     TimeSpan.FromSeconds(2),
                     new { avgX = 0.0, avgY = 0.0, shape = new ShapeTypeExtended() },
                     (avg, curVal, expiredList, curCount) =>
                     {
-                        double totalX = avg.avgX * (curCount + expiredList.Count - 1);
-                        double totalY = avg.avgY * (curCount + expiredList.Count - 1);
+                        var totalX = avg.avgX * (curCount + expiredList.Count - 1);
+                        var totalY = avg.avgY * (curCount + expiredList.Count - 1);
                         totalX += curVal.x;
                         totalY += curVal.y;
                         foreach (var ex in expiredList)
@@ -332,57 +378,57 @@ public class Processor
                     {
                         x = (int)point.avgX,
                         y = (int)point.avgY,
-                        color = square_instance.Key,
+                        color = squareInstance.Key,
                         shapesize = point.shape.shapesize
                     })
-                .DisposeAtEnd(triangle_writer,
-                              new ShapeTypeExtended { color = square_instance.Key })
+                .DisposeAtEnd(_triangleWriter,
+                              new ShapeTypeExtended { color = squareInstance.Key })
                 .Subscribe();
         });
   }
 
-  IDisposable aggregator(DDS.DomainParticipant participant)
+    private IDisposable Aggregator(DDS.DomainParticipant participant)
   {
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square");
-    var rx_circle_reader =
+    var rxCircleReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Circle");
 
     return new CompositeDisposable(
          new IDisposable[] {
-                 rx_square_reader.Subscribe(triangle_writer),
-                 rx_circle_reader.Subscribe(triangle_writer)
+                 rxSquareReader.Subscribe(_triangleWriter),
+                 rxCircleReader.Subscribe(_triangleWriter)
              }
     );
   }
 
-  IDisposable splitterDelayNAverageWindow(DDS.DomainParticipant participant)
+    private IDisposable SplitterDelayNAverageWindow(DDS.DomainParticipant participant)
   {
-    long WINDOW_SIZE = 50;
-    long HISTORY_SIZE = 20;
+    long windowSize = 50;
+    long historySize = 20;
 
     //circle_writer = DefaultParticipant.CreateDataWriter<ShapeTypeExtended>("Circle");
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromKeyedTopic<string, ShapeTypeExtended>(
             participant, "Square", shape => shape.color);
     // test_shape_vals.ToObservable().GroupBy(shape => shape.color);
 
     return new CompositeDisposable(
                 new IDisposable[] {
-                       rx_square_reader
-                          .Subscribe(square_instance => 
-                                     square_instance
-                                       .Shift(HISTORY_SIZE)
-                                       .DisposeAtEnd(circle_writer,
-                                                     new ShapeTypeExtended { color = square_instance.Key } )
+                       rxSquareReader
+                          .Subscribe(squareInstance => 
+                                     squareInstance
+                                       .Shift(historySize)
+                                       .DisposeAtEnd(_circleWriter,
+                                                     new ShapeTypeExtended { color = squareInstance.Key } )
                                        .Subscribe()),
-                       rx_square_reader
-                          .Subscribe(square_instance =>
+                       rxSquareReader
+                          .Subscribe(squareInstance =>
                               {
-                                  square_instance.Zip(
-                                    square_instance
+                                  squareInstance.Zip(
+                                    squareInstance
                                     .Select(square => square.x)
-                                    .WindowAggregate(WINDOW_SIZE,
+                                    .WindowAggregate(windowSize,
                                                      0.0,
                                                      (avgX, tail, head, count) => (avgX * count + tail - head) / count,
                                                      (avgX, tail, count, prevCount) =>
@@ -390,9 +436,9 @@ public class Processor
                                                          if (prevCount > count) tail *= -1;
                                                          return (avgX * prevCount + tail) / count;
                                                      }),
-                                    square_instance
+                                    squareInstance
                                     .Select(square => square.y)
-                                    .WindowAggregate(WINDOW_SIZE,
+                                    .WindowAggregate(windowSize,
                                                      0.0,
                                                      (avgY, tail, head, count) => (avgY * count + tail - head) / count,
                                                      (avgY, tail, count, prevCount) =>
@@ -408,32 +454,32 @@ public class Processor
                                            shapesize = square.shapesize,
                                            color = square.color
                                        })
-                                .DisposeAtEnd(triangle_writer,
-                                              new ShapeTypeExtended { color = square_instance.Key })
+                                .DisposeAtEnd(_triangleWriter,
+                                              new ShapeTypeExtended { color = squareInstance.Key })
                                 .Subscribe();
                               })
                     });
   }
 
-  IDisposable splitterDelayNAverage(DDS.DomainParticipant participant)
+    private IDisposable SplitterDelayNAverage(DDS.DomainParticipant participant)
   {
     //circle_writer = DefaultParticipant.CreateDataWriter<ShapeTypeExtended>("Circle");
 
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square");
-    int MAX_HISTORY = 20;
+    var maxHistory = 20;
     int countX = 0, countY = 0;
 
     // var rx_square_reader = Observable.Range(10, 100);
     return new CompositeDisposable(
                 new IDisposable[] {
-                       rx_square_reader
-                          .Shift(MAX_HISTORY)
-                          .DisposeAtEnd(circle_writer, new ShapeTypeExtended { color = "BLUE" })
+                       rxSquareReader
+                          .Shift(maxHistory)
+                          .DisposeAtEnd(_circleWriter, new ShapeTypeExtended { color = "BLUE" })
                           .Subscribe(),
 
-                       rx_square_reader.Zip(
-                          rx_square_reader
+                       rxSquareReader.Zip(
+                          rxSquareReader
                             .Select(square => square.x)
                             .RollingAggregate(0.0, 
                                               (avgX, x) => 
@@ -442,7 +488,7 @@ public class Processor
                                                   countX++;
                                                   return avgX;
                                               }),
-                          rx_square_reader
+                          rxSquareReader
                             .Select(square => square.y)
                             .RollingAggregate(0.0, 
                                               (avgY, y) => 
@@ -457,68 +503,67 @@ public class Processor
                                   y = (int) avgY, 
                                   shapesize = square.shapesize, 
                                   color = square.color })
-                          .Subscribe(triangle_writer)
+                          .Subscribe(_triangleWriter)
                     });
   }
 
-
-  IDisposable many_circle_correlator(DDS.DomainParticipant participant, IScheduler scheduler)
+    private IDisposable Many_circle_correlator(DDS.DomainParticipant participant, IScheduler scheduler)
   {
-    var rx_circle_reader =
+    var rxCircleReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Circle", Scheduler.Default);
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square", Scheduler.Default);
     var map = new Dictionary<string, int>();
 
-    rx_circle_reader
+    rxCircleReader
         .GroupBy(circle => circle.color)
         .ObserveOn(scheduler)
-        .Subscribe(grouped_circle =>
+        .Subscribe(groupedCircle =>
         {
-          grouped_circle
+          groupedCircle
             .Do(circle =>
             {
               lock (map)
               {
-                map[grouped_circle.Key] = circle.x;
+                map[groupedCircle.Key] = circle.x;
               }
             })
             .Subscribe();
         });
 
     return
-        rx_square_reader
+        rxSquareReader
         .GroupBy(shape => shape.color)
         .ObserveOn(scheduler)
-        .Do(grouped_square =>
+        .Do(groupedSquare =>
         {
           lock (map)
           {
-            map[grouped_square.Key] = 45;
+            map[groupedSquare.Key] = 45;
           }
         })
-        .Subscribe(grouped_square =>
+        .Subscribe(groupedSquare =>
         {
-          grouped_square
+          groupedSquare
               .Select(square =>
               {
                 return new ShapeTypeExtended
                 {
                   x = square.x,
                   y = square.y,
-                  color = grouped_square.Key,
-                  shapesize = map[grouped_square.Key]
+                  color = groupedSquare.Key,
+                  shapesize = map[groupedSquare.Key]
                 };
               })
-              .Subscribe(triangle_writer);
+              .Subscribe(_triangleWriter);
         });
   }
 
-  IDisposable circle_zip_correlator(DDS.DomainParticipant participant)
+    private IDisposable circle_zip_correlator(DDS.DomainParticipant participant)
   {
-    var rx_circle_reader =
+    var rxCircleReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Circle", Scheduler.Default);
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromKeyedTopic<string, ShapeTypeExtended>(participant, "Square", sq => sq.color, Scheduler.Default);
     var map = new Dictionary<string, int>();
 
@@ -526,26 +571,26 @@ public class Processor
 
     Console.WriteLine("Main Thread id = {0}", System.Threading.Thread.CurrentThread.ManagedThreadId);
     return
-        rx_square_reader
+        rxSquareReader
       //.GroupBy(shape => shape.color)
         .Do(_ => Console.WriteLine("Before ObserveOn tid = {0}", System.Threading.Thread.CurrentThread.ManagedThreadId))
         .ObserveOn(scheduler)
         .Do(_ => Console.WriteLine("After ObserveOn tid = {0}", System.Threading.Thread.CurrentThread.ManagedThreadId))
-        .Subscribe(grouped_square =>
+        .Subscribe(groupedSquare =>
         {
           Console.WriteLine("Inner Thread id = {0}", System.Threading.Thread.CurrentThread.ManagedThreadId);
-          grouped_square
+          groupedSquare
                 .Do(_ => Console.WriteLine("Before Zip tid = {0}", System.Threading.Thread.CurrentThread.ManagedThreadId))
-                .Zip(rx_circle_reader
+                .Zip(rxCircleReader
                        .Do(_ => Console.WriteLine("Circle tid = {0}", System.Threading.Thread.CurrentThread.ManagedThreadId))
-                       .Where(circle => circle.color == grouped_square.Key),
+                       .Where(circle => circle.color == groupedSquare.Key),
                      (square, circle) =>
                      {
                        return new ShapeTypeExtended
                        {
                          x = square.x,
                          y = square.y,
-                         color = grouped_square.Key,
+                         color = groupedSquare.Key,
                          shapesize = circle.x
                        };
                      })
@@ -554,18 +599,18 @@ public class Processor
         });
   }
 
-  IDisposable selectmany_correlator(DDS.DomainParticipant participant, bool useLinq)
+    private IDisposable selectmany_correlator(DDS.DomainParticipant participant, bool useLinq)
   {
-    var rx_circle_reader =
+    var rxCircleReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Circle", Scheduler.Default);
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square", Scheduler.Default);
 
     if (useLinq)
     {
       var correlator =
-          from square in rx_square_reader
-          from circle in rx_circle_reader.Take(1)
+          from square in rxSquareReader
+          from circle in rxCircleReader.Take(1)
           where square.color == circle.color
           select new ShapeTypeExtended
           {
@@ -575,18 +620,18 @@ public class Processor
             shapesize = circle.x
           };
 
-      return correlator.Subscribe(triangle_writer);
+      return correlator.Subscribe(_triangleWriter);
     }
     else
     {
       /* Consumes unbounded amount of memory. Don't know why. */
       return
-          rx_square_reader
+          rxSquareReader
               .ObserveOn(Scheduler.Default)
               .SelectMany(square =>
               {
                 return
-                    rx_circle_reader
+                    rxCircleReader
                         .Where(circle => circle.color == square.color)
                         .Take(1)
                         .Select(circle =>
@@ -598,104 +643,105 @@ public class Processor
                               shapesize = circle.x
                             });
               })
-              .Subscribe(triangle_writer);
+              .Subscribe(_triangleWriter);
     }
   }
 
-  IDisposable selectmany_groupby_correlator(DDS.DomainParticipant participant)
+    private IDisposable selectmany_groupby_correlator(DDS.DomainParticipant participant)
   {
-    var rx_circle_reader =
+    var rxCircleReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Circle", Scheduler.Default);
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square", Scheduler.Default);
 
     /* Very stable memory consumption */
     return
-        rx_square_reader
+        rxSquareReader
         .GroupBy(shape => shape.color)
-        .Subscribe(grouped_square =>
+        .Subscribe(groupedSquare =>
         {
-          grouped_square
+          groupedSquare
               .ObserveOn(Scheduler.Default)
               .SelectMany(square =>
               {
-                return rx_circle_reader
-                    .Where(circle => circle.color == grouped_square.Key)
+                return rxCircleReader
+                    .Where(circle => circle.color == groupedSquare.Key)
                     .Take(1)
                     .Select(circle =>
                         new ShapeTypeExtended
                         {
                           x = square.x,
                           y = square.y,
-                          color = grouped_square.Key,
+                          color = groupedSquare.Key,
                           shapesize = circle.x
                         });
               })
-              .Subscribe(triangle_writer);
+              .Subscribe(_triangleWriter);
         });
   }
 
-  IDisposable single_circle_correlator(DDS.DomainParticipant participant)
+    private IDisposable single_circle_correlator(DDS.DomainParticipant participant)
   {
-    var rx_circle_reader =
+    var rxCircleReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Circle");
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square");
 
-    int size = 45;
-    rx_circle_reader.Subscribe(circle => size = circle.x);
+    var size = 45;
+    rxCircleReader.Subscribe(circle => size = circle.x);
 
     return
-        rx_square_reader
+        rxSquareReader
         .GroupBy(shape => shape.color)
-        .Subscribe(grouped_square =>
+        .Subscribe(groupedSquare =>
         {
-          grouped_square
+          groupedSquare
               .Select(square =>
               {
                 return new ShapeTypeExtended
                 {
                   x = square.x,
                   y = square.y,
-                  color = grouped_square.Key,
+                  color = groupedSquare.Key,
                   shapesize = size
                 };
               })
-              .Subscribe(triangle_writer);
+              .Subscribe(_triangleWriter);
         });
   }
 
-  IDisposable forward(DDS.DomainParticipant participant)
+    private IDisposable Forward(DDS.DomainParticipant participant)
   {
-    var rx_reader = DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square");
+    var rxReader = DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square");
 
-    IDisposable disposable =
-        rx_reader.OnDataAvailable((ShapeTypeExtended shape) =>
+    var disposable =
+        rxReader.OnDataAvailable((ShapeTypeExtended shape) =>
         {
           DDS.InstanceHandle_t handle = DDS.InstanceHandle_t.HANDLE_NIL;
-          triangle_writer.write(shape, ref handle);
+          _triangleWriter.write(shape, ref handle);
         });
 
     return disposable;
   }
 
-  IDisposable forward_short(DDS.DomainParticipant participant)
+    private IDisposable forward_short(DDS.DomainParticipant participant)
   {
     return DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square")
                 .OnDataAvailable((ShapeTypeExtended shape) =>
                 {
                   DDS.InstanceHandle_t handle = DDS.InstanceHandle_t.HANDLE_NIL;
-                  triangle_writer.write(shape, ref handle);
+                  _triangleWriter.write(shape, ref handle);
                 });
   }
-  IDisposable forward_shortest(DDS.DomainParticipant participant)
+
+    private IDisposable forward_shortest(DDS.DomainParticipant participant)
   {
     return DDSObservable
                 .FromTopic<ShapeTypeExtended>(participant, "Square")
-                .OnDataAvailable(triangle_writer);
+                .OnDataAvailable(_triangleWriter);
   }
 
-  IDisposable swap(DDS.DomainParticipant participant)
+    private IDisposable Swap(DDS.DomainParticipant participant)
   {
     return DDSObservable
                 .FromTopic<ShapeTypeExtended>(participant, "Square")
@@ -706,35 +752,35 @@ public class Processor
                   color = shape.color,
                   shapesize = shape.shapesize
                 })
-                .DisposeAtEnd(triangle_writer,
+                .DisposeAtEnd(_triangleWriter,
                               new ShapeTypeExtended { color = "BLUE" })
                 .Subscribe();
   }
 
-  IDisposable instance_forward(DDS.DomainParticipant participant)
+    private IDisposable instance_forward(DDS.DomainParticipant participant)
   {
     DDS.Duration_t timeout = new DDS.Duration_t();
     timeout.nanosec = 0;
     timeout.sec = 10;
     return DDSObservable.FromKeyedTopicWaitSet<string, ShapeTypeExtended>
             (participant, "Square", shape => shape.color, timeout)
-                  .Subscribe(dds_instance =>
+                  .Subscribe(ddsInstance =>
                   {
-                    ShapeTypeExtended key = new ShapeTypeExtended { color = dds_instance.Key };
+                    ShapeTypeExtended key = new ShapeTypeExtended { color = ddsInstance.Key };
                     DDS.InstanceHandle_t handle = DDS.InstanceHandle_t.HANDLE_NIL;
-                    dds_instance.Subscribe(triangle_writer,
-                                           () => triangle_writer.dispose(key, ref handle));
+                    ddsInstance.Subscribe(_triangleWriter,
+                                           () => _triangleWriter.dispose(key, ref handle));
                   });
   }
 
-  IDisposable flower(DDS.DomainParticipant participant)
+    private IDisposable Flower(DDS.DomainParticipant participant)
   {
       int a = 30, b = 30, c = 10;
 
       return Observable.Interval(TimeSpan.FromMilliseconds(1), Scheduler.Immediate)
                        .Select((long x) =>
                        {
-                           int angle = (int)(x % 360);
+                           var angle = (int)(x % 360);
                            return new ShapeTypeExtended
                            {
                                x = (int)(120 + (a + b) * Math.Cos(angle) + b * Math.Cos((a / b - c) * angle)),
@@ -743,20 +789,20 @@ public class Processor
                                shapesize = 5
                            };
                        })
-                       .Subscribe(triangle_writer);
+                       .Subscribe(_triangleWriter);
   }
 
-  IDisposable orbit(DDS.DomainParticipant participant)
+    private IDisposable Orbit(DDS.DomainParticipant participant)
   {
       int radius = 40, a = 100, b = 100;
 
-      var rx_square_reader
+      var rxSquareReader
           = DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square", Scheduler.Default);
 
       return Observable.Interval(TimeSpan.FromMilliseconds(3), Scheduler.Immediate)
                        .Select((long i) =>
                        {
-                           int angle = (int)(i % 360);
+                           var angle = (int)(i % 360);
                             return new ShapeTypeExtended
                             {
                                 x = a + (int)(radius * Math.Cos(angle * Math.PI / 180)),
@@ -765,22 +811,22 @@ public class Processor
                                 shapesize = 10
                             };
                        })
-                       .Subscribe(circle_writer);
+                       .Subscribe(_circleWriter);
   }
 
-  IDisposable orbitSquare(DDS.DomainParticipant participant)
+    private IDisposable OrbitSquare(DDS.DomainParticipant participant)
   {
-      int radius = 40;
+      var radius = 40;
 
-      var rx_square_reader
+      var rxSquareReader
           = DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square", Scheduler.Default);
 
       return Observable.Interval(TimeSpan.FromMilliseconds(3), Scheduler.Immediate)
                        .SelectMany((long i) =>
                        {
-                           int angle = (int)(i % 360);
+                           var angle = (int)(i % 360);
                            return
-                               rx_square_reader
+                               rxSquareReader
                                .Select(shape =>
                                {
                                    return new ShapeTypeExtended
@@ -792,39 +838,39 @@ public class Processor
                                    };
                                }).Take(1);
                        })
-                       .Subscribe(circle_writer);
+                       .Subscribe(_circleWriter);
   }
 
-  IDisposable orbitTwo(DDS.DomainParticipant participant)
+    private IDisposable OrbitTwo(DDS.DomainParticipant participant)
   {
-      int circle_radius = 60;
-      int triangle_radius = 30;
+      var circleRadius = 60;
+      var triangleRadius = 30;
 
-      var rx_square_reader
+      var rxSquareReader
           = DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square", Scheduler.Default);
 
-      var circle_orbit =
+      var circleOrbit =
           Observable.Interval(TimeSpan.FromMilliseconds(8), new EventLoopScheduler())
                        .SelectMany((long i) =>
                        {
-                           int degree = (int)(i % 360);
+                           var degree = (int)(i % 360);
                            return
-                               rx_square_reader
+                               rxSquareReader
                                .Select(shape =>
                                {
                                    return new ShapeTypeExtended
                                    {
-                                       x = shape.x + (int)(circle_radius * Math.Cos(degree * Math.PI / 180)),
-                                       y = shape.y + (int)(circle_radius * Math.Sin(degree * Math.PI / 180)),
+                                       x = shape.x + (int)(circleRadius * Math.Cos(degree * Math.PI / 180)),
+                                       y = shape.y + (int)(circleRadius * Math.Sin(degree * Math.PI / 180)),
                                        color = "RED",
                                        shapesize = 15
                                    };
                                }).Take(1);
                        });
 
-      int angle = 0;
-      var triangle_orbit
-          = circle_orbit
+      var angle = 0;
+      var triangleOrbit
+          = circleOrbit
                 .Select(shape =>
                 {
                     angle += 3;
@@ -832,33 +878,33 @@ public class Processor
                         angle = 0;
                     return new ShapeTypeExtended
                     {
-                        x = shape.x + (int)(triangle_radius * Math.Cos(angle * Math.PI / 180)),
-                        y = shape.y + (int)(triangle_radius * Math.Sin(angle * Math.PI / 180)),
+                        x = shape.x + (int)(triangleRadius * Math.Cos(angle * Math.PI / 180)),
+                        y = shape.y + (int)(triangleRadius * Math.Sin(angle * Math.PI / 180)),
                         color = "YELLOW",
                         shapesize = 10
                     };
                 });
 
       return new CompositeDisposable(new IDisposable[] { 
-          triangle_orbit.Subscribe(triangle_writer),
-          circle_orbit.Subscribe(circle_writer)
+          triangleOrbit.Subscribe(_triangleWriter),
+          circleOrbit.Subscribe(_circleWriter)
       });
   }
 
-  IDisposable shapewriter(DDS.DomainParticipant participant)
+    private IDisposable Shapewriter(DDS.DomainParticipant participant)
   {
-      var square_writer =
+      var squareWriter =
           DefaultParticipant.CreateDataWriter<ShapeTypeExtended>("Square");
 
-      for (int i = 0; i < test_shape_vals.Length; ++i)
+      for (var i = 0; i < _testShapeVals.Length; ++i)
       {
           Console.WriteLine("Press Enter to write Square.");
-          ConsoleKeyInfo info = Console.ReadKey(true);
+          var info = Console.ReadKey(true);
           if (info.Key == ConsoleKey.Enter)
           {
               DDS.InstanceHandle_t handle = DDS.InstanceHandle_t.HANDLE_NIL;
-              var shape = test_shape_vals[i];
-              square_writer.write(shape, ref handle);
+              var shape = _testShapeVals[i];
+              squareWriter.write(shape, ref handle);
               Console.WriteLine("x = {0}, y = {0}", shape.x, shape.y);
           }
       }
@@ -867,7 +913,7 @@ public class Processor
       return Disposable.Create(() => {});
   }
 
-  IDisposable solarSystem(DDS.DomainParticipant participant)
+    private IDisposable SolarSystem(DDS.DomainParticipant participant)
   {
       var sunLoc =
           DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square", Scheduler.Default);
@@ -883,7 +929,7 @@ public class Processor
               {
                   return from t in ticks
                          from sun in sunLoc.Take(1)
-                         let degree = (int)(t * 365 / daysInYear)
+                         let degree = t * 365 / daysInYear
                          select new ShapeTypeExtended
                          {
                              x = sun.x + (int)(orbitRadius * Math.Cos(degree * Math.PI / 180)),
@@ -930,7 +976,7 @@ public class Processor
       var marsLoc    = planetOrbit("ORANGE", marsSize,    marsRadius,    marsYear);
       var jupiterLoc = planetOrbit("CYAN",   jupiterSize, jupiterRadius, jupiterYear);
 
-      int angle = 0;
+      var angle = 0;
       var moonLoc
           = earthLoc
                 .Select(shape =>
@@ -948,23 +994,23 @@ public class Processor
       return new CompositeDisposable(new IDisposable[] { 
           //mercuryLoc.Subscribe(circle_writer),
           //venusLoc.Subscribe(circle_writer),
-          earthLoc.Subscribe(circle_writer)
+          earthLoc.Subscribe(_circleWriter)
           //marsLoc.Subscribe(circle_writer),
           //jupiterLoc.Subscribe(circle_writer),
           // moonLoc.Subscribe(triangle_writer)
       });
   }
 
-  double distance(int x1, int y1, int x2, int y2)
+    private double Distance(int x1, int y1, int x2, int y2)
   {
     return Math.Sqrt(Math.Pow(x1 - x2, 2) + Math.Pow(y1 - y2, 2));
   }
 
-  IDisposable collisions(DDS.DomainParticipant participant, IScheduler scheduler)
+    private IDisposable Collisions(DDS.DomainParticipant participant, IScheduler scheduler)
   {
-    var rx_circle_reader =
+    var rxCircleReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Circle", Scheduler.Default);
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square", Scheduler.Default);
     /*
             var collisions =  from circle in rx_circle_reader
@@ -1003,15 +1049,15 @@ public class Processor
     */
     /* Very stable memory usage */
     return
-        rx_circle_reader
+        rxCircleReader
           .ObserveOn(scheduler)
           .SelectMany(circle =>
           {
             return
-                rx_square_reader
+                rxSquareReader
                  .Take(1)
                  .Where(square => square.color == circle.color)
-                 .Where(square => distance(square.x, square.y, circle.x, circle.y) <= 30)
+                 .Where(square => Distance(square.x, square.y, circle.x, circle.y) <= 30)
                  .Select(square =>
                  {
                    return new ShapeTypeExtended
@@ -1023,25 +1069,25 @@ public class Processor
                    };
                  });
           })
-          .Subscribe(triangle_writer);
+          .Subscribe(_triangleWriter);
 
   }
 
-  IDisposable collisions_combinelatest(DDS.DomainParticipant participant, IScheduler scheduler)
+    private IDisposable collisions_combinelatest(DDS.DomainParticipant participant, IScheduler scheduler)
   {
-    var rx_circle_reader =
+    var rxCircleReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Circle", Scheduler.Default);
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square", Scheduler.Default);
 
     var dummy = new ShapeTypeExtended { color = "DUMMY" };
 
-    return rx_circle_reader
+    return rxCircleReader
               .ObserveOn(scheduler)
-              .CombineLatest(rx_square_reader,
+              .CombineLatest(rxSquareReader,
                              (circle, square) =>
                              {
-                               if (distance(circle.x, circle.y, square.x, square.y) <= 30)
+                               if (Distance(circle.x, circle.y, square.x, square.y) <= 30)
                                  return new ShapeTypeExtended
                                  {
                                    x = (square.x + circle.x) / 2,
@@ -1053,117 +1099,121 @@ public class Processor
                                  return dummy;
                              })
                  .Where(shape => shape.color != "DUMMY")
-                 .Subscribe(triangle_writer);
+                 .Subscribe(_triangleWriter);
   }
 
-  IDisposable key_correlator_flat(DDS.DomainParticipant participant)
+    private IDisposable key_correlator_flat(DDS.DomainParticipant participant)
   {
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square");
 
     var disp1 =
-       rx_square_reader
+       rxSquareReader
             .Where(shape => shape.color == "GREEN")
-            .CombineLatest(rx_square_reader.Where(shape => shape.color == "BLUE"),
+            .CombineLatest(rxSquareReader.Where(shape => shape.color == "BLUE"),
                           (a, b) =>
                           {
                             return new ShapeTypeExtended
                             {
-                              x = (int)((a.x + b.x) / 2),
-                              y = (int)((a.y + b.y) / 2),
+                              x = (a.x + b.x) / 2,
+                              y = (a.y + b.y) / 2,
                               color = "RED",
                               shapesize = a.shapesize
                             };
                           })
-              .Subscribe(triangle_writer);
+              .Subscribe(_triangleWriter);
 
     var disp2 =
-      rx_square_reader
+      rxSquareReader
           .Where(shape => shape.color == "YELLOW")
-          .CombineLatest(rx_square_reader.Where(shape => shape.color == "MAGENTA"),
+          .CombineLatest(rxSquareReader.Where(shape => shape.color == "MAGENTA"),
                         (a, b) =>
                         {
                           return new ShapeTypeExtended
                           {
-                            x = (int)((a.x + b.x) / 2),
-                            y = (int)((a.y + b.y) / 2),
+                            x = (a.x + b.x) / 2,
+                            y = (a.y + b.y) / 2,
                             color = "CYAN",
                             shapesize = a.shapesize
                           };
                         })
-            .Subscribe(triangle_writer);
+            .Subscribe(_triangleWriter);
 
 
     return new CompositeDisposable(new IDisposable[] { disp1, disp2 });
   }
 
-  IDisposable key_correlator_grouped(DDS.DomainParticipant participant)
+    private IDisposable Key_correlator_grouped(DDS.DomainParticipant participant)
   {
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromKeyedTopic<string, ShapeTypeExtended>(participant, "Square", shape => shape.color);
 
-    var color_observable_map =
+    var colorObservableMap =
       new Dictionary<string, IGroupedObservable<string, ShapeTypeExtended>>();
 
-    var associations = new Dictionary<string, string>();
-    associations.Add("PURPLE", "BLUE");
-    associations.Add("BLUE", "PURPLE");
-    associations.Add("RED", "GREEN");
-    associations.Add("GREEN", "RED");
-    associations.Add("YELLOW", "CYAN");
-    associations.Add("CYAN", "YELLOW");
-    associations.Add("MAGENTA", "ORANGE");
-    associations.Add("ORANGE", "MAGENTA");
+      var associations = new Dictionary<string, string>
+      {
+          {"PURPLE", "BLUE"},
+          {"BLUE", "PURPLE"},
+          {"RED", "GREEN"},
+          {"GREEN", "RED"},
+          {"YELLOW", "CYAN"},
+          {"CYAN", "YELLOW"},
+          {"MAGENTA", "ORANGE"},
+          {"ORANGE", "MAGENTA"}
+      };
 
-    /* Increasing memory consumption */
+      /* Increasing memory consumption */
     return
-      rx_square_reader
-        .Do(groupedSq => color_observable_map.Add(groupedSq.Key, groupedSq))
+      rxSquareReader
+        .Do(groupedSq => colorObservableMap.Add(groupedSq.Key, groupedSq))
         .Subscribe(groupedSq =>
         {
-          var pair_key = associations[groupedSq.Key];
-          if (color_observable_map.ContainsKey(pair_key))
+          var pairKey = associations[groupedSq.Key];
+          if (colorObservableMap.ContainsKey(pairKey))
           {
             groupedSq
-              .CombineLatest(color_observable_map[pair_key],
+              .CombineLatest(colorObservableMap[pairKey],
                             (a, b) =>
                             {
                               return new ShapeTypeExtended
                               {
-                                x = (int)((a.x + b.x) / 2),
-                                y = (int)((a.y + b.y) / 2),
+                                x = (a.x + b.x) / 2,
+                                y = (a.y + b.y) / 2,
                                 color = a.color,
                                 shapesize = a.shapesize
                               };
                             })
-              .Subscribe(triangle_writer);
+              .Subscribe(_triangleWriter);
           }
         });
   }
 
-  IDisposable key_correlator_replay(DDS.DomainParticipant participant, bool useLinq)
+    private IDisposable key_correlator_replay(DDS.DomainParticipant participant, bool useLinq)
   {
-    int MAX_COLORS = 8;
+    var maxColors = 8;
 
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromKeyedTopic<string, ShapeTypeExtended>(participant, "Square", shape => shape.color);
 
-    var dictionary = new Dictionary<string, string>();
-    dictionary.Add("PURPLE", "BLUE");
-    dictionary.Add("RED", "GREEN");
-    dictionary.Add("YELLOW", "CYAN");
-    dictionary.Add("MAGENTA", "ORANGE");
+      var dictionary = new Dictionary<string, string>
+      {
+          {"PURPLE", "BLUE"},
+          {"RED", "GREEN"},
+          {"YELLOW", "CYAN"},
+          {"MAGENTA", "ORANGE"}
+      };
 
-    var associations = new ReadOnlyDictionary<string, string>(dictionary);
+      var associations = new ReadOnlyDictionary<string, string>(dictionary);
 
-    var cache = rx_square_reader.Replay();
+    var cache = rxSquareReader.Replay();
     cache.Connect();
 
     if (useLinq)
     {
       return
           (from group1 in cache.Where(groupedSq => associations.ContainsKey(groupedSq.Key))
-           from group2 in cache.Take(MAX_COLORS)
+           from group2 in cache.Take(maxColors)
            where associations[group1.Key] == group2.Key
            select new { k1 = group1, k2 = group2 })
             .Subscribe(pair =>
@@ -1174,13 +1224,13 @@ public class Processor
                                    {
                                      return new ShapeTypeExtended
                                      {
-                                       x = (int)((a.x + b.x) / 2),
-                                       y = (int)((a.y + b.y) / 2),
+                                       x = (a.x + b.x) / 2,
+                                       y = (a.y + b.y) / 2,
                                        color = a.color,
                                        shapesize = a.shapesize
                                      };
                                    })
-                     .Subscribe(triangle_writer);
+                     .Subscribe(_triangleWriter);
             });
     }
     else
@@ -1188,50 +1238,53 @@ public class Processor
       return
         cache
            .Where(groupedSq => associations.ContainsKey(groupedSq.Key))
-           .SelectMany(groupedSq => cache.Take(MAX_COLORS),
-                      (groupedSq, cached_groupedSq) =>
+           .SelectMany(groupedSq => cache.Take(maxColors),
+                      (groupedSq, cachedGroupedSq) =>
                       {
-                        if (associations[groupedSq.Key] == cached_groupedSq.Key)
+                        if (associations[groupedSq.Key] == cachedGroupedSq.Key)
                         {
-                          Console.WriteLine("MATCH {0} -- {1}", groupedSq.Key, cached_groupedSq.Key);
+                          Console.WriteLine("MATCH {0} -- {1}", groupedSq.Key, cachedGroupedSq.Key);
                           groupedSq
-                            .CombineLatest(cached_groupedSq,
+                            .CombineLatest(cachedGroupedSq,
                                           (a, b) =>
                                           {
                                             return new ShapeTypeExtended
                                             {
-                                              x = (int)((a.x + b.x) / 2),
-                                              y = (int)((a.y + b.y) / 2),
+                                              x = (a.x + b.x) / 2,
+                                              y = (a.y + b.y) / 2,
                                               color = a.color,
                                               shapesize = a.shapesize
                                             };
                                           })
-                            .Subscribe(triangle_writer);
+                            .Subscribe(_triangleWriter);
                         }
                         else
-                          Console.WriteLine("NO-MATCH {0} -- {1}", groupedSq.Key, cached_groupedSq.Key);
+                          Console.WriteLine("NO-MATCH {0} -- {1}", groupedSq.Key, cachedGroupedSq.Key);
 
                         return (IGroupedObservable<string, ShapeTypeExtended>)groupedSq;
                       }).Subscribe();
     }
   }
-  IDisposable key_correlator_zip4(DDS.DomainParticipant participant)
+
+    private IDisposable key_correlator_zip4(DDS.DomainParticipant participant)
   {
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromKeyedTopic<string, ShapeTypeExtended>(participant, "Square", shape => shape.color);
 
-    var color_map = new Dictionary<string, IObservable<IGroupedObservable<string, ShapeTypeExtended>>>();
+      var colorMap = new Dictionary<string, IObservable<IGroupedObservable<string, ShapeTypeExtended>>>
+      {
+          {"BLUE", rxSquareReader.Where(sq => sq.Key == "BLUE")},
+          {"RED", rxSquareReader.Where(sq => sq.Key == "RED")},
+          {"GREEN", rxSquareReader.Where(sq => sq.Key == "GREEN")},
+          {"YELLOW", rxSquareReader.Where(sq => sq.Key == "YELLOW")}
+      };
 
-    color_map.Add("BLUE", rx_square_reader.Where(sq => sq.Key == "BLUE"));
-    color_map.Add("RED", rx_square_reader.Where(sq => sq.Key == "RED"));
-    color_map.Add("GREEN", rx_square_reader.Where(sq => sq.Key == "GREEN"));
-    color_map.Add("YELLOW", rx_square_reader.Where(sq => sq.Key == "YELLOW"));
 
-    return
-      color_map["RED"]
-              .Zip(color_map["GREEN"],
-                   color_map["BLUE"],
-                   color_map["YELLOW"],
+      return
+      colorMap["RED"]
+              .Zip(colorMap["GREEN"],
+                   colorMap["BLUE"],
+                   colorMap["YELLOW"],
                   (rs, gs, bs, ys) =>
                   {
                     rs.CombineLatest(gs, bs, ys,
@@ -1245,33 +1298,33 @@ public class Processor
                                           shapesize = 30
                                         };
                                       })
-                        .Subscribe(triangle_writer);
+                        .Subscribe(_triangleWriter);
 
                     return rs;
                   }).Subscribe();
   }
 
-  IDisposable key_correlator_zipN(DDS.DomainParticipant participant, int N)
+    private IDisposable Key_correlator_zipN(DDS.DomainParticipant participant, int n)
   {
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromKeyedTopic<string, ShapeTypeExtended>(participant, "Square", shape => shape.color);
 
     // The order of the keys is the same that of the Shapes Demo UI.
-    var allkeys = new string[] { "PURPLE", "BLUE", "RED", "GREEN", "YELLOW", "CYAN", "MAGENTA", "ORANGE" };
-    var nkeys = allkeys.Take(N);
+    var allkeys = new[] { "PURPLE", "BLUE", "RED", "GREEN", "YELLOW", "CYAN", "MAGENTA", "ORANGE" };
+    var nkeys = allkeys.Take(n);
 
-    Console.Write("Averaging {0}: ", N);
+    Console.Write("Averaging {0}: ", n);
     nkeys.Subscribe(Observer.Create<string>(key => Console.Write("{0} ", key)));
     Console.WriteLine();
 
-    var color_observables =
-      nkeys.Select(key => rx_square_reader.Where(sq => sq.Key == key));
+    var colorObservables =
+      nkeys.Select(key => rxSquareReader.Where(sq => sq.Key == key));
 
     return
-    Observable.Zip(color_observables)
-              .Subscribe((IList<IGroupedObservable<string, ShapeTypeExtended>> key_list) =>
+    Observable.Zip(colorObservables)
+              .Subscribe((IList<IGroupedObservable<string, ShapeTypeExtended>> keyList) =>
               {
-                Observable.CombineLatest(key_list)
+                keyList.CombineLatest()
                           .Select((IList<ShapeTypeExtended> shapes) =>
                           {
                             var avg = new ShapeTypeExtended
@@ -1292,33 +1345,33 @@ public class Processor
 
                             return avg;
                           })
-                          .Subscribe(triangle_writer);
+                          .Subscribe(_triangleWriter);
               });
   }
 
-  IDisposable key_correlator_dynamic(DDS.DomainParticipant participant, IScheduler scheduler)
+    private IDisposable Key_correlator_dynamic(DDS.DomainParticipant participant, IScheduler scheduler)
   {
-    var rx_square_reader =
+    var rxSquareReader =
         DDSObservable.FromKeyedTopic<string, ShapeTypeExtended>(participant, "Square", shape => shape.color, scheduler);
     var triangleColor = "RED";
     
     return
-      rx_square_reader
+      rxSquareReader
         .ActiveKeyScan(new { lastSub = Disposable.Empty },
-            (seed, stream_list) =>
+            (seed, streamList) =>
             {
               seed.lastSub.Dispose();
-              if (stream_list.Count == 0)
+              if (streamList.Count == 0)
               {
                 var handle = DDS.InstanceHandle_t.HANDLE_NIL;
-                triangle_writer.dispose(new ShapeTypeExtended { color = triangleColor }, ref handle);
+                _triangleWriter.dispose(new ShapeTypeExtended { color = triangleColor }, ref handle);
                 return new { lastSub = Disposable.Empty };
               }
               else
                 return new
                 {
                   lastSub =
-                    Observable.CombineLatest(stream_list)
+                    streamList.CombineLatest()
                               .Select((IList<ShapeTypeExtended> shapes) =>
                               {
                                 var avg = new ShapeTypeExtended
@@ -1339,13 +1392,13 @@ public class Processor
 
                                 return avg;
                               })
-                              .Subscribe(triangle_writer)
+                              .Subscribe(_triangleWriter)
                 };
             })
         .Subscribe();
   }
 
-  IDisposable once(DDS.DomainParticipant participant)
+    private IDisposable Once(DDS.DomainParticipant participant)
   {
       return Observable
               .Timer(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1))
@@ -1354,7 +1407,7 @@ public class Processor
               .Subscribe(Console.WriteLine);
   }
 
-  IDisposable join(DDS.DomainParticipant participant)
+    private IDisposable Join(DDS.DomainParticipant participant)
   {
       var squares =
           DDSObservable.FromTopic<ShapeTypeExtended>(participant, "Square")
@@ -1409,20 +1462,21 @@ public class Processor
                               color = "GREEN",
                               shapesize = 15
                           })
-                    .Subscribe(triangle_writer);
+                    .Subscribe(_triangleWriter);
   }
 
   public static IEnumerable<int> Numbers()
   {
-    int i = 0;
+    var i = 0;
     while (true)
     {
       yield return unchecked(i++);
     }
   }
-  IDisposable groupJoinInfiniteInner()
+
+    private IDisposable GroupJoinInfiniteInner()
   {
-    var xs = new int[] { 0, 1, 2, 3 };
+    var xs = new[] { 0, 1, 2, 3 };
     var ys = Enumerable.Repeat(0, 1000000000).Scan((n, _) => n + 1, 0);
     //IEnumerable<int> ys = Numbers();
     var result = xs.GroupJoin(ys,
@@ -1438,9 +1492,9 @@ public class Processor
   }
 
   //private DDS.TypedDataWriter<ShapeTypeExtended> square_writer;
-  private DDS.TypedDataWriter<ShapeTypeExtended> triangle_writer;
-  private DDS.TypedDataWriter<ShapeTypeExtended> circle_writer;
-  private DDS.InstanceHandle_t instance_handle = DDS.InstanceHandle_t.HANDLE_NIL;
+  private DDS.TypedDataWriter<ShapeTypeExtended> _triangleWriter;
+  private DDS.TypedDataWriter<ShapeTypeExtended> _circleWriter;
+  private DDS.InstanceHandle_t _instanceHandle = DDS.InstanceHandle_t.HANDLE_NIL;
 }
 
 
